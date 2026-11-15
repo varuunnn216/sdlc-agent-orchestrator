@@ -1,0 +1,29 @@
+--- a/src/utils/cart.ts
++++ b/src/utils/cart.ts
+@@ -26,7 +26,7 @@ export function addToCart(items: CartItem[], product: Product): CartItem[] {
+   if (existing) {
+     return items.map((item) =>
+       item.product.id === product.id
+-        ? { ...item, quantity: Math.min(item.quantity + 1, product.stock) }
++        ? { ...item, quantity: item.quantity + 1 }
+         : item
+     );
+   }
+@@ -43,7 +43,7 @@ export function updateQuantity(
+   }
+   return items.map((item) =>
+     item.product.id === productId
+-      ? { ...item, quantity: Math.min(quantity, item.product.stock) }
++      ? { ...item, quantity }
+       : item
+   );
+ }
+@@ -60,7 +60,7 @@ export function calculateSubtotal(items: CartItem[]): number {
+ }
+ 
+ export function calculateDiscount(subtotal: number, promoCode: string): number {
+-  const rate = PROMO_CODES[promoCode.trim().toUpperCase()] ?? 0;
++  const rate = PROMO_CODES[promoCode.toUpperCase()] ?? 0;
+   return Number((subtotal * rate).toFixed(2));
+ }
+ 

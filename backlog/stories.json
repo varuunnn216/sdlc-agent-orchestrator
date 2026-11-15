@@ -1,0 +1,134 @@
+[
+  {
+    "id": "STORY-1",
+    "type": "story",
+    "difficulty": "easy",
+    "status": "open",
+    "title": "Add Clear Cart button",
+    "description": "As a shopper, I want a 'Clear Cart' button in the cart panel so I can empty my cart and reset any applied promo code in one click.",
+    "acceptance_criteria": [
+      "When the cart has at least one item, a button with text 'Clear Cart' is visible.",
+      "Clicking 'Clear Cart' removes all items from the cart and clears the promo code."
+    ],
+    "test_file": "stories/tests/STORY-1.test.tsx"
+  },
+  {
+    "id": "STORY-2",
+    "type": "story",
+    "difficulty": "easy",
+    "status": "open",
+    "title": "Display free shipping threshold progress",
+    "description": "As a shopper, I want to see how close my cart subtotal is to the $100 free shipping threshold.",
+    "acceptance_criteria": [
+      "When cart subtotal is below $100, display 'Add $X.XX more for free shipping'.",
+      "When cart subtotal is $100 or more, display 'Free shipping unlocked!'."
+    ],
+    "test_file": "stories/tests/STORY-2.test.tsx"
+  },
+  {
+    "id": "STORY-3",
+    "type": "story",
+    "difficulty": "easy",
+    "status": "open",
+    "title": "Show Low Stock badge on products with 6 or fewer items",
+    "description": "As a shopper, I want to see a 'Low stock' indicator on product cards when available stock is 6 or fewer.",
+    "acceptance_criteria": [
+      "Products with stock > 0 and stock <= 6 display a 'Low stock' badge.",
+      "Products with stock > 6 do not display the 'Low stock' badge."
+    ],
+    "test_file": "stories/tests/STORY-3.test.tsx"
+  },
+  {
+    "id": "STORY-4",
+    "type": "story",
+    "difficulty": "easy",
+    "status": "open",
+    "title": "Sort products by price",
+    "description": "As a shopper, I want to sort products by price (Low to High or High to Low) from the search bar.",
+    "acceptance_criteria": [
+      "SearchBar renders a select control with aria-label 'Sort products'.",
+      "Selecting 'Price: Low to High' orders products from lowest to highest price.",
+      "Selecting 'Price: High to Low' orders products from highest to lowest price."
+    ],
+    "test_file": "stories/tests/STORY-4.test.tsx"
+  },
+  {
+    "id": "STORY-5",
+    "type": "story",
+    "difficulty": "easy",
+    "status": "open",
+    "title": "Reset search and category filters",
+    "description": "As a shopper, I want a 'Reset Filters' button in the search bar to clear my search query and category filter.",
+    "acceptance_criteria": [
+      "A 'Reset Filters' button is rendered in the search bar.",
+      "Clicking 'Reset Filters' resets the search query to empty and category to 'All'."
+    ],
+    "test_file": "stories/tests/STORY-5.test.tsx"
+  },
+  {
+    "id": "STORY-6",
+    "type": "story",
+    "difficulty": "easy",
+    "status": "open",
+    "title": "Show validation message for invalid promo codes",
+    "description": "As a shopper, I want to see an 'Invalid promo code' message when I enter a promo code that is not recognized.",
+    "acceptance_criteria": [
+      "When promoCode is non-empty and not a valid promo code, display 'Invalid promo code' in the cart.",
+      "When promoCode is empty or valid (e.g. SAVE10), do not display 'Invalid promo code'."
+    ],
+    "test_file": "stories/tests/STORY-6.test.tsx"
+  },
+  {
+    "id": "STORY-7",
+    "type": "story",
+    "difficulty": "medium",
+    "status": "open",
+    "title": "Disable Add to Cart when cart reaches product stock limit",
+    "description": "As a shopper, I want the 'Add to Cart' button on a product card to be disabled and show 'Max in Cart' once I have added all available stock to my cart.",
+    "acceptance_criteria": [
+      "When cart quantity for a product equals product.stock, its button text changes to 'Max in Cart' and is disabled.",
+      "Before reaching stock limit, the button remains enabled with text 'Add to Cart'."
+    ],
+    "test_file": "stories/tests/STORY-7.test.tsx"
+  },
+  {
+    "id": "STORY-8",
+    "type": "story",
+    "difficulty": "medium",
+    "status": "open",
+    "title": "Persist cart items in localStorage",
+    "description": "As a shopper, I want my cart items saved in localStorage so they persist across page reloads.",
+    "acceptance_criteria": [
+      "Adding or updating items saves the cart array to localStorage under key 'mockshop_cart'.",
+      "Mounting App loads initial cart items from localStorage['mockshop_cart'] if present."
+    ],
+    "test_file": "stories/tests/STORY-8.test.tsx"
+  },
+  {
+    "id": "STORY-9",
+    "type": "story",
+    "difficulty": "medium",
+    "status": "open",
+    "title": "Show itemized order details in checkout confirmation",
+    "description": "As a shopper, I want the order confirmation box to show my email address and an itemized list of purchased products with quantities.",
+    "acceptance_criteria": [
+      "Order confirmation displays customerEmail.",
+      "Order confirmation lists each purchased item's name and quantity (e.g. 'Mechanical Keyboard x 2')."
+    ],
+    "test_file": "stories/tests/STORY-9.test.tsx"
+  },
+  {
+    "id": "STORY-10",
+    "type": "story",
+    "difficulty": "hard",
+    "status": "open",
+    "title": "Apply automatic 5% bulk discount for 5+ total items",
+    "description": "As a shopper, I want an automatic 5% bulk discount when my cart has 5 or more total items, applied before any promo code discount.",
+    "acceptance_criteria": [
+      "When total quantity across all cart items is >= 5, a 5% bulk discount is applied to the subtotal.",
+      "Promo code discount is calculated on the subtotal after the bulk discount.",
+      "Cart displays a 'Bulk discount (5%)' line when applicable."
+    ],
+    "test_file": "stories/tests/STORY-10.test.tsx"
+  }
+]

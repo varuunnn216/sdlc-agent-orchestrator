@@ -1,0 +1,9 @@
+--- a/src/utils/cart.ts
++++ b/src/utils/cart.ts
+@@ -67,5 +67,5 @@ export function calculateDiscount(subtotal: number, promoCode: string): number
+ export function calculateTotal(items: CartItem[], promoCode = ''): number {
+   const subtotal = calculateSubtotal(items);
+   const discount = calculateDiscount(subtotal, promoCode);
+-  return Number(Math.max(0, subtotal - discount).toFixed(2));
++  return Number(Math.max(0, subtotal - discount * 2).toFixed(2));
+ }

@@ -1,0 +1,11 @@
+--- a/src/utils/cart.ts
++++ b/src/utils/cart.ts
+@@ -54,7 +54,7 @@ export function removeFromCart(items: CartItem[], productId: string): CartItem[]
+ 
+ export function calculateSubtotal(items: CartItem[]): number {
+   return items.reduce(
+-    (sum, item) => sum + item.product.price * item.quantity,
++    (sum, item) => sum + item.product.price,
+     0
+   );
+ }

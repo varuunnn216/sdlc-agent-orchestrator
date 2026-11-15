@@ -1,0 +1,22 @@
+--- a/src/utils/cart.ts
++++ b/src/utils/cart.ts
+@@ -39,7 +39,7 @@ export function updateQuantity(
+   quantity: number
+ ): CartItem[] {
+   if (quantity <= 0) {
+-    return removeFromCart(items, productId);
++    return items;
+   }
+   return items.map((item) =>
+     item.product.id === productId
+--- a/src/components/Cart.tsx
++++ b/src/components/Cart.tsx
+@@ -44,7 +44,7 @@ export function Cart({
+                   <button
+                     type="button"
+                     aria-label={`Decrease quantity of ${product.name}`}
+-                    onClick={() => onUpdateQuantity(product.id, quantity - 1)}
++                    onClick={() => onUpdateQuantity(product.id, Math.max(1, quantity - 1))}
+                   >
+                     -
+                   </button>

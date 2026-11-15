@@ -1,0 +1,93 @@
+[
+  {
+    "id": "BUG-1",
+    "type": "bug",
+    "difficulty": "easy",
+    "status": "open",
+    "title": "Cart subtotal does not reflect item quantity",
+    "description": "When I increase the quantity of an item in my cart to 2 or more, the subtotal and total still show the price for a single unit.",
+    "steps_to_reproduce": [
+      "Add Mechanical Keyboard ($120.00) to the cart.",
+      "Click the '+' button to increase quantity to 2.",
+      "Observe the Subtotal and Total in the cart panel."
+    ],
+    "expected": "Subtotal should be $240.00 for quantity 2.",
+    "actual": "Subtotal stays at $120.00 regardless of quantity.",
+    "patch_file": "bugs/patches/BUG-1.patch"
+  },
+  {
+    "id": "BUG-2",
+    "type": "bug",
+    "difficulty": "easy",
+    "status": "open",
+    "title": "Product search fails on uppercase or mixed-case queries",
+    "description": "Searching for a product using uppercase letters returns no results even though the product is in the catalog.",
+    "steps_to_reproduce": [
+      "Open the storefront.",
+      "Type 'KEYBOARD' into the product search box."
+    ],
+    "expected": "Mechanical Keyboard should appear in the product list.",
+    "actual": "No products match your search.",
+    "patch_file": "bugs/patches/BUG-2.patch"
+  },
+  {
+    "id": "BUG-3",
+    "type": "bug",
+    "difficulty": "easy",
+    "status": "open",
+    "title": "Promo code discount is deducted twice from the cart total",
+    "description": "Applying a valid promo code like SAVE10 reduces the final total by 20% instead of 10%, even though the discount line shows 10%.",
+    "steps_to_reproduce": [
+      "Add Mechanical Keyboard ($120.00) to the cart.",
+      "Enter promo code 'SAVE10'."
+    ],
+    "expected": "Discount should be -$12.00 and Total should be $108.00.",
+    "actual": "Discount shows -$12.00, but Total shows $96.00.",
+    "patch_file": "bugs/patches/BUG-3.patch"
+  },
+  {
+    "id": "BUG-4",
+    "type": "bug",
+    "difficulty": "medium",
+    "status": "open",
+    "title": "Searching for a nonexistent product crashes the page",
+    "description": "When a search query matches zero products, the page crashes with a runtime error instead of showing an empty-state message.",
+    "steps_to_reproduce": [
+      "Open the storefront.",
+      "Type 'nonexistent-item-xyz' into the search box."
+    ],
+    "expected": "The page should display 'No products match your search.'",
+    "actual": "The application throws a TypeError and fails to render.",
+    "patch_file": "bugs/patches/BUG-4.patch"
+  },
+  {
+    "id": "BUG-5",
+    "type": "bug",
+    "difficulty": "medium",
+    "status": "open",
+    "title": "Decreasing item quantity to zero does not remove it from the cart",
+    "description": "Clicking '-' when an item has quantity 1 leaves the item stuck in the cart instead of removing it.",
+    "steps_to_reproduce": [
+      "Add any product to the cart (quantity 1).",
+      "Click the '-' button next to the item."
+    ],
+    "expected": "The item should be removed from the cart.",
+    "actual": "The item remains in the cart with quantity 1.",
+    "patch_file": "bugs/patches/BUG-5.patch"
+  },
+  {
+    "id": "BUG-6",
+    "type": "bug",
+    "difficulty": "hard",
+    "status": "open",
+    "title": "Cart allows ordering above stock and ignores promo codes with extra spaces",
+    "description": "Users can set item quantities higher than available stock, and pasting a promo code with leading or trailing spaces fails to apply the discount.",
+    "steps_to_reproduce": [
+      "Add Wireless Mouse (stock: 15) and set its quantity above 15.",
+      "Enter ' SAVE10 ' with spaces into the promo code field."
+    ],
+    "expected": "Quantity should be capped at available stock (15), and ' SAVE10 ' should apply the 10% discount.",
+    "actual": "Quantity exceeds stock and the promo discount is $0.00.",
+    "patch_file": "bugs/patches/BUG-6.patch"
+  }
+]
