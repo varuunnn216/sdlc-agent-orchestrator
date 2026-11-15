@@ -69,7 +69,7 @@ def main() -> None:
 
     try:
         item = apply_case(args.case_id, args.workdir)
-    except Exception as exc:
+    except (ValueError, subprocess.CalledProcessError, OSError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         sys.exit(1)
 
