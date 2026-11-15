@@ -1,4 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
+import { FadeContent } from './components/reactbits/FadeContent';
+import { GradientText } from './components/reactbits/GradientText';
+import { SpotlightCard } from './components/reactbits/SpotlightCard';
+import { TextType } from './components/reactbits/TextType';
 
 interface WorkItem {
   id: string;
@@ -149,9 +153,11 @@ export function App() {
     <div className="shell">
       <header className="topbar">
         <div>
-          <h1>SDLC Agent Orchestrator</h1>
+          <h1>
+            <GradientText>SDLC Agent Orchestrator</GradientText>
+          </h1>
           <p className="subtitle">
-            Plan → Implement via MCP → Verify with Vitest → Human Approval Gate
+            <TextType text="Plan → Implement via MCP → Verify with Vitest → Human Approval Gate" />
           </p>
         </div>
         <div className="status-pill" data-status={runStatus}>
@@ -160,169 +166,177 @@ export function App() {
       </header>
 
       <div className="grid">
-        <aside className="panel backlog-panel">
-          <div className="panel-header">
-            <h2>Backlog ({visibleItems.length})</h2>
-            <div className="filter-tabs">
-              {(['all', 'bug', 'story'] as const).map((tab) => (
-                <button
-                  key={tab}
-                  type="button"
-                  className={filter === tab ? 'tab active' : 'tab'}
-                  onClick={() => setFilter(tab)}
-                >
-                  {tab === 'all' ? 'All' : tab === 'bug' ? 'Bugs' : 'Stories'}
-                </button>
-              ))}
+        <FadeContent>
+          <SpotlightCard as="aside" className="backlog-panel">
+            <div className="panel-header">
+              <h2>Backlog ({visibleItems.length})</h2>
+              <div className="filter-tabs">
+                {(['all', 'bug', 'story'] as const).map((tab) => (
+                  <button
+                    key={tab}
+                    type="button"
+                    className={filter === tab ? 'tab active' : 'tab'}
+                    onClick={() => setFilter(tab)}
+                  >
+                    {tab === 'all' ? 'All' : tab === 'bug' ? 'Bugs' : 'Stories'}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
 
-          <ul className="item-list">
-            {visibleItems.map((item) => (
-              <li
-                key={item.id}
-                className={
-                  item.id === selectedId ? 'item-card selected' : 'item-card'
-                }
-                onClick={() => setSelectedId(item.id)}
-              >
-                <div className="item-meta">
-                  <span className={`tag tag-${item.type}`}>{item.id}</span>
-                  <span className="tag tag-diff">{item.difficulty}</span>
-                </div>
-                <div className="item-title">{item.title}</div>
-              </li>
-            ))}
-          </ul>
-        </aside>
+            <ul className="item-list">
+              {visibleItems.map((item) => (
+                <li
+                  key={item.id}
+                  className={
+                    item.id === selectedId ? 'item-card selected' : 'item-card'
+                  }
+                  onClick={() => setSelectedId(item.id)}
+                >
+                  <div className="item-meta">
+                    <span className={`tag tag-${item.type}`}>{item.id}</span>
+                    <span className="tag tag-diff">{item.difficulty}</span>
+                  </div>
+                  <div className="item-title">{item.title}</div>
+                </li>
+              ))}
+            </ul>
+          </SpotlightCard>
+        </FadeContent>
 
         <main className="workspace">
           {selectedItem && (
-            <section className="panel ticket-panel">
-              <div className="ticket-header">
-                <div>
-                  <h2>
-                    {selectedItem.id}: {selectedItem.title}
-                  </h2>
-                  <p>{selectedItem.description}</p>
+            <FadeContent delayMs={40}>
+              <SpotlightCard as="section" className="ticket-panel">
+                <div className="ticket-header">
+                  <div>
+                    <h2>
+                      {selectedItem.id}: {selectedItem.title}
+                    </h2>
+                    <p>{selectedItem.description}</p>
+                  </div>
+                  <div className="run-controls">
+                    <label className="checkbox-label">
+                      <input
+                        type="checkbox"
+                        checked={dryRun}
+                        onChange={(e) => setDryRun(e.target.checked)}
+                      />
+                      Dry-run PR
+                    </label>
+                    <button
+                      type="button"
+                      className="primary-btn"
+                      onClick={handleRun}
+                      disabled={runStatus === 'running'}
+                    >
+                      {runStatus === 'running' ? 'Running...' : 'Run Agent'}
+                    </button>
+                  </div>
                 </div>
-                <div className="run-controls">
-                  <label className="checkbox-label">
-                    <input
-                      type="checkbox"
-                      checked={dryRun}
-                      onChange={(e) => setDryRun(e.target.checked)}
-                    />
-                    Dry-run PR
-                  </label>
-                  <button
-                    type="button"
-                    className="primary-btn"
-                    onClick={handleRun}
-                    disabled={runStatus === 'running'}
-                  >
-                    {runStatus === 'running' ? 'Running...' : 'Run Agent'}
-                  </button>
-                </div>
-              </div>
-              {errorMsg && <div className="error-banner">{errorMsg}</div>}
-            </section>
+                {errorMsg && <div className="error-banner">{errorMsg}</div>}
+              </SpotlightCard>
+            </FadeContent>
           )}
 
-          <section className="panel trace-panel">
-            <h2>Live Step Trace (SSE)</h2>
-            {plan && (
-              <div className="plan-box">
-                <strong>Plan</strong>
-                <pre>{plan}</pre>
-              </div>
-            )}
-            {steps.length === 0 ? (
-              <p className="muted">Select a work item and click Run Agent.</p>
-            ) : (
-              <ol className="step-list">
-                {steps.map((s) => (
-                  <li key={s.step_index} className="step-item">
-                    <div className="step-head">
-                      <span className="step-badge">{s.phase}</span>
-                      <code>{s.tool}</code>
-                      <span className="muted">
-                        {s.duration_ms}ms · {s.tokens_in + s.tokens_out} tok
-                      </span>
-                    </div>
-                    <pre className="step-args">
-                      {JSON.stringify(s.args, null, 2)}
-                    </pre>
-                  </li>
-                ))}
-              </ol>
-            )}
-          </section>
-
-          <section className="panel diff-panel">
-            <div className="panel-header">
-              <h2>Diff Viewer &amp; Approval Gate</h2>
-              {runStatus === 'awaiting_approval' && (
-                <div className="approval-actions">
-                  <input
-                    type="text"
-                    placeholder="Rejection reason (optional)"
-                    value={rejectReason}
-                    onChange={(e) => setRejectReason(e.target.value)}
-                  />
-                  <button
-                    type="button"
-                    className="reject-btn"
-                    onClick={handleReject}
-                  >
-                    Reject
-                  </button>
-                  <button
-                    type="button"
-                    className="approve-btn"
-                    onClick={handleApprove}
-                  >
-                    Approve &amp; Open PR
-                  </button>
+          <FadeContent delayMs={80}>
+            <SpotlightCard as="section" className="trace-panel">
+              <h2>Live Step Trace (SSE)</h2>
+              {plan && (
+                <div className="plan-box">
+                  <strong>Plan</strong>
+                  <pre>{plan}</pre>
                 </div>
               )}
-            </div>
+              {steps.length === 0 ? (
+                <p className="muted">Select a work item and click Run Agent.</p>
+              ) : (
+                <ol className="step-list">
+                  {steps.map((s) => (
+                    <li key={s.step_index} className="step-item">
+                      <div className="step-head">
+                        <span className="step-badge">{s.phase}</span>
+                        <code>{s.tool}</code>
+                        <span className="muted">
+                          {s.duration_ms}ms · {s.tokens_in + s.tokens_out} tok
+                        </span>
+                      </div>
+                      <pre className="step-args">
+                        {JSON.stringify(s.args, null, 2)}
+                      </pre>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </SpotlightCard>
+          </FadeContent>
 
-            {prResult && (
-              <div className="pr-banner">
-                PR {prResult.status} on branch <code>{prResult.branch}</code>
-                {prResult.pr_url && (
-                  <>
-                    {' — '}
-                    <a href={prResult.pr_url} target="_blank" rel="noreferrer">
-                      {prResult.pr_url}
-                    </a>
-                  </>
+          <FadeContent delayMs={120}>
+            <SpotlightCard as="section" className="diff-panel">
+              <div className="panel-header">
+                <h2>Diff Viewer &amp; Approval Gate</h2>
+                {runStatus === 'awaiting_approval' && (
+                  <div className="approval-actions">
+                    <input
+                      type="text"
+                      placeholder="Rejection reason (optional)"
+                      value={rejectReason}
+                      onChange={(e) => setRejectReason(e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      className="reject-btn"
+                      onClick={handleReject}
+                    >
+                      Reject
+                    </button>
+                    <button
+                      type="button"
+                      className="approve-btn"
+                      onClick={handleApprove}
+                    >
+                      Approve &amp; Open PR
+                    </button>
+                  </div>
                 )}
               </div>
-            )}
 
-            {diff ? (
-              <pre className="diff-code">
-                {diff.split('\n').map((line, idx) => {
-                  const cls = line.startsWith('+')
-                    ? 'diff-add'
-                    : line.startsWith('-')
-                      ? 'diff-del'
-                      : line.startsWith('@@')
-                        ? 'diff-hunk'
-                        : '';
-                  return (
-                    <div key={idx} className={cls}>
-                      {line}
-                    </div>
-                  );
-                })}
-              </pre>
-            ) : (
-              <p className="muted">No diff generated yet.</p>
-            )}
-          </section>
+              {prResult && (
+                <div className="pr-banner">
+                  PR {prResult.status} on branch <code>{prResult.branch}</code>
+                  {prResult.pr_url && (
+                    <>
+                      {' — '}
+                      <a href={prResult.pr_url} target="_blank" rel="noreferrer">
+                        {prResult.pr_url}
+                      </a>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {diff ? (
+                <pre className="diff-code">
+                  {diff.split('\n').map((line, idx) => {
+                    const cls = line.startsWith('+')
+                      ? 'diff-add'
+                      : line.startsWith('-')
+                        ? 'diff-del'
+                        : line.startsWith('@@')
+                          ? 'diff-hunk'
+                          : '';
+                    return (
+                      <div key={idx} className={cls}>
+                        {line}
+                      </div>
+                    );
+                  })}
+                </pre>
+              ) : (
+                <p className="muted">No diff generated yet.</p>
+              )}
+            </SpotlightCard>
+          </FadeContent>
         </main>
       </div>
     </div>

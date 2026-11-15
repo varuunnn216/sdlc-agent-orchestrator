@@ -1,0 +1,32 @@
+.rb-gradient-text {
+  display: inline-block;
+  background: linear-gradient(
+    100deg,
+    #e5e7eb 0%,
+    #a5b4fc 35%,
+    #6366f1 60%,
+    #e5e7eb 100%
+  );
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: rb-gradient-shift 8s ease infinite;
+}
+
+@keyframes rb-gradient-shift {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rb-gradient-text {
+    animation: none;
+    background-position: 0% 50%;
+  }
+}
