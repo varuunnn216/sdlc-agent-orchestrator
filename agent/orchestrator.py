@@ -77,7 +77,7 @@ class AgentConfig:
         default_factory=lambda: os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-5-20250929")
     )
     gemini_model: str = field(
-        default_factory=lambda: os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+        default_factory=lambda: os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
     )
     max_tool_calls: int = 15
     max_tokens_per_run: int = 50_000
