@@ -1,0 +1,10 @@
+.rb-dot-grid {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.28;
+  background-image: radial-gradient(rgba(148, 163, 184, 0.35) 1px, transparent 1px);
+  background-size: 24px 24px;
+  mask-image: radial-gradient(ellipse 80% 70% at 50% 25%, #000 35%, transparent 100%);
+}

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { AnimatedList } from './components/reactbits/AnimatedList';
 import { CallChip } from './components/reactbits/CallChip';
 import { Counter } from './components/reactbits/Counter';
@@ -6,7 +6,10 @@ import { FadeContent } from './components/reactbits/FadeContent';
 import { GradientText } from './components/reactbits/GradientText';
 import { HoldButton } from './components/reactbits/HoldButton';
 import { LatticeLoader } from './components/reactbits/LatticeLoader';
+import { Noise } from './components/reactbits/Noise';
 import { RubberSegment } from './components/reactbits/RubberSegment';
+
+const DotGrid = lazy(() => import('./components/reactbits/DotGrid'));
 import { SlideCommit } from './components/reactbits/SlideCommit';
 import { SpotlightCard } from './components/reactbits/SpotlightCard';
 import { SquishSwitch } from './components/reactbits/SquishSwitch';
@@ -166,7 +169,12 @@ export function App() {
   };
 
   return (
-    <div className="shell">
+    <>
+      <Suspense fallback={null}>
+        <DotGrid />
+      </Suspense>
+      <Noise />
+      <div className="shell">
       <header className="topbar">
         <div>
           <h1>
@@ -357,6 +365,7 @@ export function App() {
         </main>
       </div>
     </div>
+    </>
   );
 }
 
