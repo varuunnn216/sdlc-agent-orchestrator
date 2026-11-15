@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
+import { AnimatedList } from './components/reactbits/AnimatedList';
+import { Counter } from './components/reactbits/Counter';
 import { FadeContent } from './components/reactbits/FadeContent';
 import { GradientText } from './components/reactbits/GradientText';
+import { RubberSegment } from './components/reactbits/RubberSegment';
 import { SpotlightCard } from './components/reactbits/SpotlightCard';
 import { TextType } from './components/reactbits/TextType';
 
@@ -169,38 +172,39 @@ export function App() {
         <FadeContent>
           <SpotlightCard as="aside" className="backlog-panel">
             <div className="panel-header">
-              <h2>Backlog ({visibleItems.length})</h2>
-              <div className="filter-tabs">
-                {(['all', 'bug', 'story'] as const).map((tab) => (
-                  <button
-                    key={tab}
-                    type="button"
-                    className={filter === tab ? 'tab active' : 'tab'}
-                    onClick={() => setFilter(tab)}
-                  >
-                    {tab === 'all' ? 'All' : tab === 'bug' ? 'Bugs' : 'Stories'}
-                  </button>
-                ))}
+              <div className="backlog-title-row">
+                <h2>Backlog</h2>
+                <Counter value={visibleItems.length} />
               </div>
+              <RubberSegment
+                ariaLabel="Filter work items"
+                value={filter}
+                onChange={setFilter}
+                options={[
+                  { value: 'all', label: 'All' },
+                  { value: 'bug', label: 'Bugs' },
+                  { value: 'story', label: 'Stories' },
+                ]}
+              />
             </div>
 
-            <ul className="item-list">
-              {visibleItems.map((item) => (
-                <li
-                  key={item.id}
-                  className={
-                    item.id === selectedId ? 'item-card selected' : 'item-card'
-                  }
-                  onClick={() => setSelectedId(item.id)}
-                >
+            <AnimatedList
+              items={visibleItems}
+              selectedId={selectedId}
+              onSelect={setSelectedId}
+              ariaLabel="Work items"
+              renderItem={(item) => (
+                <>
                   <div className="item-meta">
                     <span className={`tag tag-${item.type}`}>{item.id}</span>
-                    <span className="tag tag-diff">{item.difficulty}</span>
+                    <span className={`tag tag-${item.difficulty}`}>
+                      {item.difficulty}
+                    </span>
                   </div>
                   <div className="item-title">{item.title}</div>
-                </li>
-              ))}
-            </ul>
+                </>
+              )}
+            />
           </SpotlightCard>
         </FadeContent>
 

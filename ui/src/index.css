@@ -186,6 +186,34 @@ input:focus-visible,
   border: 1px solid var(--border);
 }
 
+.tag-easy {
+  background: rgba(34, 197, 94, 0.14);
+  color: #86efac;
+  border: 1px solid rgba(34, 197, 94, 0.35);
+}
+
+.tag-medium {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fcd34d;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+}
+
+.tag-hard {
+  background: rgba(239, 68, 68, 0.16);
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+}
+
+.backlog-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.backlog-title-row h2 {
+  margin: 0;
+}
+
 .item-title {
   font-size: 13px;
   font-weight: 500;
