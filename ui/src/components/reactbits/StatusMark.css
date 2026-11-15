@@ -14,18 +14,18 @@
   width: 8px;
   height: 8px;
   border-radius: 999px;
-  background: var(--muted);
+  background: var(--subtle);
 }
 
 .rb-status-label {
-  font-family: var(--font-mono);
-  font-size: 12px;
+  font-family: var(--font-sans);
+  font-size: 12.5px;
   font-weight: 600;
 }
 
 .rb-status-mark[data-status='running'] .rb-status-dot {
   background: var(--accent);
-  box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.6);
+  box-shadow: 0 0 0 0 rgba(34, 211, 238, 0.6);
   animation: rb-status-pulse 1.5s ease-out infinite;
 }
 
@@ -38,6 +38,26 @@
   background: var(--success);
 }
 
+.rb-status-check {
+  color: var(--success);
+  flex-shrink: 0;
+}
+
+.rb-status-check path {
+  stroke-dasharray: 20;
+  stroke-dashoffset: 0;
+  animation: rb-check-draw 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes rb-check-draw {
+  from {
+    stroke-dashoffset: 20;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
 .rb-status-mark[data-status='failed'] .rb-status-dot,
 .rb-status-mark[data-status='rejected'] .rb-status-dot,
 .rb-status-mark[data-status='budget_exceeded'] .rb-status-dot {
@@ -46,18 +66,19 @@
 
 @keyframes rb-status-pulse {
   0% {
-    box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.55);
+    box-shadow: 0 0 0 0 rgba(34, 211, 238, 0.55);
   }
   70% {
-    box-shadow: 0 0 0 7px rgba(99, 102, 241, 0);
+    box-shadow: 0 0 0 7px rgba(34, 211, 238, 0);
   }
   100% {
-    box-shadow: 0 0 0 0 rgba(99, 102, 241, 0);
+    box-shadow: 0 0 0 0 rgba(34, 211, 238, 0);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .rb-status-mark[data-status='running'] .rb-status-dot {
+  .rb-status-mark[data-status='running'] .rb-status-dot,
+  .rb-status-check path {
     animation: none;
   }
 }

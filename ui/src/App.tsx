@@ -1,22 +1,31 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { AnimatedList } from './components/reactbits/AnimatedList';
+import { BlurText } from './components/reactbits/BlurText';
 import { CallChip } from './components/reactbits/CallChip';
+import { ClickSpark } from './components/reactbits/ClickSpark';
 import { Counter } from './components/reactbits/Counter';
+import { ElectricBorder } from './components/reactbits/ElectricBorder';
 import { FadeContent } from './components/reactbits/FadeContent';
-import { GradientText } from './components/reactbits/GradientText';
+import './components/reactbits/GlareHover.css';
 import { HoldButton } from './components/reactbits/HoldButton';
 import { LatticeLoader } from './components/reactbits/LatticeLoader';
+import { Magnet } from './components/reactbits/Magnet';
 import { Noise } from './components/reactbits/Noise';
-import { RubberSegment } from './components/reactbits/RubberSegment';
-
-const DotGrid = lazy(() => import('./components/reactbits/DotGrid'));
+import { ShinyText } from './components/reactbits/ShinyText';
 import { SlideCommit } from './components/reactbits/SlideCommit';
-import { SpotlightCard } from './components/reactbits/SpotlightCard';
 import { SquishSwitch } from './components/reactbits/SquishSwitch';
-import { StarBorder } from './components/reactbits/StarBorder';
 import { StatusMark } from './components/reactbits/StatusMark';
-import { TextType } from './components/reactbits/TextType';
 import { ThoughtLine } from './components/reactbits/ThoughtLine';
+
+const LightRays = lazy(() => import('./components/reactbits/LightRays'));
+const Particles = lazy(() => import('./components/reactbits/Particles'));
+
+const PIPELINE_STEPS = [
+  'Plan',
+  'Implement via MCP',
+  'Verify with Vitest',
+  'Human Approval',
+];
 
 interface WorkItem {
   id: string;
@@ -87,6 +96,21 @@ export function App() {
     (item) => filter === 'all' || item.type === filter
   );
   const selectedItem = items.find((i) => i.id === selectedId) ?? null;
+
+  const activePipelineStep = (() => {
+    if (runStatus === 'done' || runStatus === 'approved') return 4;
+    if (runStatus === 'awaiting_approval') return 3;
+    if (runStatus !== 'running') return null;
+    const last = steps[steps.length - 1];
+    if (!last) return 0;
+    const phase = last.phase.toLowerCase();
+    const tool = last.tool.toLowerCase();
+    if (phase.includes('verify') || tool.includes('test') || tool.includes('vitest')) {
+      return 2;
+    }
+    if (phase.includes('plan')) return 0;
+    return 1;
+  })();
 
   const handleRun = async () => {
     if (!selectedId) return;
@@ -169,19 +193,43 @@ export function App() {
   };
 
   return (
-    <>
+    <ClickSpark>
       <Suspense fallback={null}>
-        <DotGrid />
+        <LightRays status={runStatus} />
+        <Particles status={runStatus} />
       </Suspense>
       <Noise />
       <div className="shell">
       <header className="topbar">
         <div>
           <h1>
-            <GradientText>SDLC Agent Orchestrator</GradientText>
+            <BlurText text="SDLC Agent Orchestrator" />
           </h1>
-          <p className="subtitle">
-            <TextType text="Plan → Implement via MCP → Verify with Vitest → Human Approval Gate" />
+          <p className="subtitle subtitle-pipeline">
+            {PIPELINE_STEPS.map((label, idx) => {
+              const isCurrent =
+                activePipelineStep !== null && idx === activePipelineStep;
+              const isFinished =
+                activePipelineStep !== null && idx < activePipelineStep;
+              return (
+                <span key={label} className="subtitle-segment">
+                  {isCurrent ? (
+                    <ShinyText text={label} />
+                  ) : (
+                    <span
+                      className={`subtitle-step ${isFinished ? 'is-done' : ''}`.trim()}
+                    >
+                      {label}
+                    </span>
+                  )}
+                  {idx < PIPELINE_STEPS.length - 1 && (
+                    <span className="subtitle-sep" aria-hidden="true">
+                      {' → '}
+                    </span>
+                  )}
+                </span>
+              );
+            })}
           </p>
         </div>
         <StatusMark status={runStatus} />
@@ -189,22 +237,44 @@ export function App() {
 
       <div className="grid">
         <FadeContent>
-          <SpotlightCard as="aside" className="backlog-panel">
+          <aside className="panel rb-glare-hover backlog-panel">
             <div className="panel-header">
               <div className="backlog-title-row">
                 <h2>Backlog</h2>
                 <Counter value={visibleItems.length} />
               </div>
-              <RubberSegment
-                ariaLabel="Filter work items"
-                value={filter}
-                onChange={setFilter}
-                options={[
-                  { value: 'all', label: 'All' },
-                  { value: 'bug', label: 'Bugs' },
-                  { value: 'story', label: 'Stories' },
-                ]}
-              />
+              <div
+                className="segmented-filter"
+                role="tablist"
+                aria-label="Filter work items"
+              >
+                <span
+                  className="segmented-filter-indicator"
+                  aria-hidden="true"
+                  style={{
+                    transform: `translateX(${
+                      (filter === 'all' ? 0 : filter === 'bug' ? 1 : 2) * 100
+                    }%)`,
+                  }}
+                />
+                {(['all', 'bug', 'story'] as const).map((val) => {
+                  const label =
+                    val === 'all' ? 'All' : val === 'bug' ? 'Bugs' : 'Stories';
+                  const active = filter === val;
+                  return (
+                    <button
+                      key={val}
+                      type="button"
+                      role="tab"
+                      aria-selected={active}
+                      className={`segmented-filter-btn ${active ? 'active' : ''}`.trim()}
+                      onClick={() => setFilter(val)}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             <AnimatedList
@@ -224,13 +294,13 @@ export function App() {
                 </>
               )}
             />
-          </SpotlightCard>
+          </aside>
         </FadeContent>
 
         <main className="workspace">
           {selectedItem && (
             <FadeContent delayMs={40}>
-              <SpotlightCard as="section" className="ticket-panel">
+              <section className="panel rb-glare-hover ticket-panel">
                 <div className="ticket-header">
                   <div>
                     <h2>
@@ -244,25 +314,28 @@ export function App() {
                       checked={dryRun}
                       onChange={setDryRun}
                     />
-                    <StarBorder disabled={runStatus === 'running'}>
-                      <button
-                        type="button"
-                        className="primary-btn"
-                        onClick={handleRun}
-                        disabled={runStatus === 'running'}
-                      >
-                        {runStatus === 'running' ? 'Running...' : 'Run Agent'}
-                      </button>
-                    </StarBorder>
+                    <Magnet disabled={runStatus === 'running'}>
+                      <ElectricBorder active={runStatus === 'running'}>
+                        <button
+                          type="button"
+                          data-spark="true"
+                          className="primary-btn"
+                          onClick={handleRun}
+                          disabled={runStatus === 'running'}
+                        >
+                          {runStatus === 'running' ? 'Running...' : 'Run Agent'}
+                        </button>
+                      </ElectricBorder>
+                    </Magnet>
                   </div>
                 </div>
                 {errorMsg && <div className="error-banner">{errorMsg}</div>}
-              </SpotlightCard>
+              </section>
             </FadeContent>
           )}
 
           <FadeContent delayMs={80}>
-            <SpotlightCard as="section" className="trace-panel">
+            <section className="panel rb-glare-hover trace-panel">
               <div className="panel-header">
                 <h2>Live Step Trace (SSE)</h2>
                 {runStatus === 'running' && <LatticeLoader />}
@@ -270,9 +343,23 @@ export function App() {
               {plan && <ThoughtLine label="Plan" content={plan} />}
               <div className="trace-scroll">
                 {steps.length === 0 ? (
-                  <p className="muted">
-                    Select a work item and click Run Agent.
-                  </p>
+                  <div className="empty-state">
+                    <svg
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.75"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <polyline points="4 17 10 11 4 5" />
+                      <line x1="12" y1="19" x2="20" y2="19" />
+                    </svg>
+                    <span>Select a work item and click Run Agent.</span>
+                  </div>
                 ) : (
                   <ol className="trace-list">
                     {steps.map((s) => (
@@ -290,18 +377,18 @@ export function App() {
                 )}
                 <div ref={traceEndRef} />
               </div>
-            </SpotlightCard>
+            </section>
           </FadeContent>
 
           <FadeContent delayMs={120}>
-            <SpotlightCard as="section" className="diff-panel">
+            <section className="panel rb-glare-hover diff-panel">
               <div className="panel-header diff-header">
                 <h2>Diff Viewer &amp; Approval Gate</h2>
                 <div className="approval-actions">
                   <input
                     type="text"
                     aria-label="Rejection reason"
-                    placeholder="Rejection reason (required)"
+                    placeholder="Reason (required)"
                     value={rejectReason}
                     onChange={(e) => setRejectReason(e.target.value)}
                     disabled={!diff || runStatus !== 'awaiting_approval'}
@@ -358,14 +445,31 @@ export function App() {
                   })}
                 </pre>
               ) : (
-                <p className="muted">No diff generated yet.</p>
+                <div className="empty-state">
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.75"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <polyline points="14 2 14 8 20 8" />
+                    <line x1="9" y1="15" x2="15" y2="15" />
+                  </svg>
+                  <span>No diff generated yet.</span>
+                </div>
               )}
-            </SpotlightCard>
+            </section>
           </FadeContent>
         </main>
       </div>
     </div>
-    </>
+    </ClickSpark>
   );
 }
 

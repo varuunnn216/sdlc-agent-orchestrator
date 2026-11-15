@@ -1,0 +1,29 @@
+.rb-light-rays-wrap {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 48vh;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0) 100%);
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0) 100%);
+}
+
+.rb-light-rays-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.rb-light-rays-fallback {
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(
+    ellipse 70% 85% at 50% -10%,
+    rgba(34, 211, 238, 0.16) 0%,
+    rgba(224, 242, 254, 0.06) 45%,
+    transparent 80%
+  );
+}

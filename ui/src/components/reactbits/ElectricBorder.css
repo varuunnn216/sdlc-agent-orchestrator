@@ -1,0 +1,53 @@
+.rb-electric-border {
+  position: relative;
+  display: inline-flex;
+  padding: 2px;
+  border-radius: calc(var(--radius-md) + 2px);
+  overflow: hidden;
+}
+
+.rb-electric-border.is-active::before {
+  content: '';
+  position: absolute;
+  inset: -100%;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    transparent 240deg,
+    var(--accent) 300deg,
+    #a5f3fc 330deg,
+    var(--accent) 360deg
+  );
+  animation: rb-electric-spin 1.4s linear infinite;
+}
+
+.rb-electric-border.is-active::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: 0 0 12px rgba(34, 211, 238, 0.35);
+  pointer-events: none;
+}
+
+.rb-electric-border-inner {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  border-radius: var(--radius-md);
+  background: var(--bg);
+}
+
+@keyframes rb-electric-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rb-electric-border.is-active::before {
+    animation: none;
+    inset: 0;
+    background: var(--accent);
+  }
+}

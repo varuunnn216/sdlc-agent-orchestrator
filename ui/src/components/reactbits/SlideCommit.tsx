@@ -52,6 +52,7 @@ export function SlideCommit({
   return (
     <div
       ref={trackRef}
+      data-spark="true"
       className={`rb-slide-commit ${disabled ? 'is-disabled' : ''}`.trim()}
     >
       <div

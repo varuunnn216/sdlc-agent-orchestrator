@@ -1,0 +1,32 @@
+.rb-blur-text {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.28em;
+}
+
+.rb-blur-word {
+  display: inline-block;
+  animation: rb-blur-in 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes rb-blur-in {
+  from {
+    opacity: 0;
+    filter: blur(8px);
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rb-blur-word {
+    animation: none;
+    opacity: 1;
+    filter: none;
+    transform: none;
+  }
+}

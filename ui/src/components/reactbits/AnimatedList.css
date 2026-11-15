@@ -7,25 +7,84 @@
   gap: 8px;
   max-height: 72vh;
   overflow-y: auto;
+  padding-right: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) var(--bg);
+}
+
+.rb-animated-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.rb-animated-list::-webkit-scrollbar-track {
+  background: var(--bg);
+  border-radius: 999px;
+}
+
+.rb-animated-list::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 999px;
+}
+
+.rb-animated-list::-webkit-scrollbar-thumb:hover {
+  background: var(--border-strong);
 }
 
 .rb-animated-list-item {
-  background: rgba(11, 15, 20, 0.55);
+  position: relative;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: var(--bg);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: 12px;
   cursor: pointer;
   animation: rb-list-enter 180ms ease-out both;
-  transition: border-color 0.15s ease, background-color 0.15s ease;
+  transition: border-color 0.18s ease, background-color 0.18s ease,
+    transform 140ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.25s ease;
+}
+
+.rb-animated-list-item::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    115deg,
+    transparent 25%,
+    rgba(207, 250, 254, 0.05) 50%,
+    transparent 75%
+  );
+  transform: translateX(-120%);
+  transition: transform 480ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.rb-animated-list-item:hover::after {
+  transform: translateX(120%);
+}
+
+.rb-animated-list-item:active {
+  transform: scale(0.98);
 }
 
 .rb-animated-list-item:hover {
-  border-color: #334155;
+  border-color: var(--border-strong);
+  background: var(--surface-2);
 }
 
 .rb-animated-list-item.selected {
-  border-color: var(--accent);
-  background: rgba(99, 102, 241, 0.12);
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+  animation: rb-border-sweep 340ms ease-out;
+}
+
+@keyframes rb-border-sweep {
+  0% {
+    box-shadow: inset 0 0 0 1px var(--accent), 0 0 0 0 rgba(34, 211, 238, 0.25);
+  }
+  100% {
+    box-shadow: inset 0 0 0 0 transparent, 0 0 0 0 transparent;
+  }
 }
 
 @keyframes rb-list-enter {
@@ -40,7 +99,17 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .rb-animated-list-item {
+  .rb-animated-list-item,
+  .rb-animated-list-item.selected {
     animation: none;
+    transition: none;
+  }
+
+  .rb-animated-list-item:active {
+    transform: none;
+  }
+
+  .rb-animated-list-item::after {
+    display: none;
   }
 }

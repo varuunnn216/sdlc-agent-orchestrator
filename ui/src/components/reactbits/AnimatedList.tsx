@@ -1,4 +1,4 @@
-import { useRef, type KeyboardEvent, type ReactNode } from 'react';
+import { type KeyboardEvent, type ReactNode } from 'react';
 import './AnimatedList.css';
 
 interface AnimatedListProps<T extends { id: string }> {
@@ -16,34 +16,31 @@ export function AnimatedList<T extends { id: string }>({
   renderItem,
   ariaLabel,
 }: AnimatedListProps<T>) {
-  const itemRefs = useRef<Array<HTMLLIElement | null>>([]);
-
   const handleKeyDown = (e: KeyboardEvent<HTMLUListElement>) => {
     if (items.length === 0) return;
     const currentIndex = Math.max(
       0,
       items.findIndex((i) => i.id === selectedId)
     );
-
-    let nextIndex = -1;
+    let nextIndex = currentIndex;
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      nextIndex = (currentIndex + 1) % items.length;
+      nextIndex = Math.min(items.length - 1, currentIndex + 1);
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      nextIndex = (currentIndex - 1 + items.length) % items.length;
+      nextIndex = Math.max(0, currentIndex - 1);
     } else if (e.key === 'Home') {
       e.preventDefault();
       nextIndex = 0;
     } else if (e.key === 'End') {
       e.preventDefault();
       nextIndex = items.length - 1;
+    } else {
+      return;
     }
-
-    if (nextIndex >= 0) {
-      const next = items[nextIndex];
-      onSelect(next.id);
-      itemRefs.current[nextIndex]?.focus();
+    const target = items[nextIndex];
+    if (target) {
+      onSelect(target.id);
     }
   };
 
@@ -52,6 +49,7 @@ export function AnimatedList<T extends { id: string }>({
       className="rb-animated-list"
       role="listbox"
       aria-label={ariaLabel}
+      tabIndex={0}
       onKeyDown={handleKeyDown}
     >
       {items.map((item, idx) => {
@@ -59,21 +57,12 @@ export function AnimatedList<T extends { id: string }>({
         return (
           <li
             key={item.id}
-            ref={(el) => {
-              itemRefs.current[idx] = el;
-            }}
             role="option"
             aria-selected={isSelected}
-            tabIndex={isSelected || (idx === 0 && !selectedId) ? 0 : -1}
+            data-spark="true"
             className={`rb-animated-list-item ${isSelected ? 'selected' : ''}`.trim()}
-            style={{ animationDelay: `${Math.min(idx, 8) * 18}ms` }}
+            style={{ animationDelay: `${Math.min(idx, 10) * 18}ms` }}
             onClick={() => onSelect(item.id)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                onSelect(item.id);
-              }
-            }}
           >
             {renderItem(item, isSelected)}
           </li>
