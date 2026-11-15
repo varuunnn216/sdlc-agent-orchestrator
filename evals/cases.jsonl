@@ -1,0 +1,15 @@
+{"id": "STORY-1", "type": "story", "difficulty": "easy", "title": "Add Clear Cart button"}
+{"id": "STORY-2", "type": "story", "difficulty": "easy", "title": "Display free shipping threshold progress"}
+{"id": "STORY-3", "type": "story", "difficulty": "easy", "title": "Show Low Stock badge on products with 6 or fewer items"}
+{"id": "STORY-4", "type": "story", "difficulty": "easy", "title": "Sort products by price"}
+{"id": "STORY-5", "type": "story", "difficulty": "easy", "title": "Reset search and category filters"}
+{"id": "STORY-6", "type": "story", "difficulty": "easy", "title": "Show validation message for invalid promo codes"}
+{"id": "STORY-7", "type": "story", "difficulty": "medium", "title": "Disable Add to Cart when cart reaches product stock limit"}
+{"id": "STORY-8", "type": "story", "difficulty": "medium", "title": "Persist cart items in localStorage"}
+{"id": "STORY-9", "type": "story", "difficulty": "medium", "title": "Show itemized order details in checkout confirmation"}
+{"id": "STORY-10", "type": "story", "difficulty": "hard", "title": "Apply automatic 5% bulk discount for 5+ total items"}
+{"id": "BUG-1", "type": "bug", "difficulty": "easy", "title": "Cart subtotal does not reflect item quantity"}
+{"id": "BUG-2", "type": "bug", "difficulty": "easy", "title": "Product search fails on uppercase or mixed-case queries"}
+{"id": "BUG-3", "type": "bug", "difficulty": "easy", "title": "Promo code discount is deducted twice from the cart total"}
+{"id": "BUG-4", "type": "bug", "difficulty": "medium", "title": "Searching for a nonexistent product crashes the page"}
+{"id": "BUG-5", "type": "bug", "difficulty": "medium", "title": "Decreasing item quantity to zero does not remove it from the cart"}
