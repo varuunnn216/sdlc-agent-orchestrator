@@ -148,10 +148,13 @@ def main() -> None:
     parser.add_argument("--keep-workdirs", action="store_true", help="Keep isolated working copies")
     args = parser.parse_args()
 
-    api_key = os.getenv("ANTHROPIC_API_KEY", "")
-    if not api_key or api_key == "your-anthropic-api-key-here":
+    gemini_key = os.getenv("GEMINI_API_KEY", "")
+    anthropic_key = os.getenv("ANTHROPIC_API_KEY", "")
+    has_gemini = bool(gemini_key and gemini_key != "your-gemini-api-key-here")
+    has_anthropic = bool(anthropic_key and anthropic_key != "your-anthropic-api-key-here")
+    if not has_gemini and not has_anthropic:
         print(
-            "Error: Set a valid ANTHROPIC_API_KEY in .env before running evals.",
+            "Error: Set a valid GEMINI_API_KEY or ANTHROPIC_API_KEY in .env before running evals.",
             file=sys.stderr,
         )
         sys.exit(1)
