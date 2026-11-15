@@ -1,0 +1,26 @@
+.rb-thought-line {
+  position: relative;
+  padding-left: 16px;
+  margin-bottom: 14px;
+  border-left: 2px solid var(--accent);
+}
+
+.rb-thought-line-label {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #a5b4fc;
+  margin-bottom: 6px;
+}
+
+.rb-thought-line-body {
+  margin: 0;
+  white-space: pre-wrap;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--text);
+}

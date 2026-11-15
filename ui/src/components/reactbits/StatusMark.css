@@ -1,0 +1,63 @@
+.rb-status-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 7px 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.rb-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--muted);
+}
+
+.rb-status-label {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.rb-status-mark[data-status='running'] .rb-status-dot {
+  background: var(--accent);
+  box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.6);
+  animation: rb-status-pulse 1.5s ease-out infinite;
+}
+
+.rb-status-mark[data-status='awaiting_approval'] .rb-status-dot {
+  background: var(--warning);
+}
+
+.rb-status-mark[data-status='approved'] .rb-status-dot,
+.rb-status-mark[data-status='done'] .rb-status-dot {
+  background: var(--success);
+}
+
+.rb-status-mark[data-status='failed'] .rb-status-dot,
+.rb-status-mark[data-status='rejected'] .rb-status-dot,
+.rb-status-mark[data-status='budget_exceeded'] .rb-status-dot {
+  background: var(--danger);
+}
+
+@keyframes rb-status-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.55);
+  }
+  70% {
+    box-shadow: 0 0 0 7px rgba(99, 102, 241, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(99, 102, 241, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rb-status-mark[data-status='running'] .rb-status-dot {
+    animation: none;
+  }
+}

@@ -1,0 +1,83 @@
+.rb-call-chip {
+  background: rgba(11, 15, 20, 0.75);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  font-family: var(--font-mono);
+}
+
+.rb-call-chip-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.rb-call-chip-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rb-call-chip-phase {
+  background: rgba(99, 102, 241, 0.18);
+  color: #c7d2fe;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.rb-call-chip-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.rb-call-chip-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.rb-call-chip-outcome {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.rb-call-chip-outcome.is-ok {
+  background: rgba(34, 197, 94, 0.14);
+  color: #86efac;
+  border: 1px solid rgba(34, 197, 94, 0.35);
+}
+
+.rb-call-chip-outcome.is-err {
+  background: rgba(239, 68, 68, 0.15);
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+}
+
+.rb-call-chip-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.rb-call-chip-args {
+  margin: 8px 0 0;
+  padding-top: 8px;
+  border-top: 1px solid rgba(31, 41, 55, 0.7);
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 11.5px;
+  color: var(--muted);
+}

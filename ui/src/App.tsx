@@ -1,11 +1,19 @@
 import { useEffect, useRef, useState } from 'react';
 import { AnimatedList } from './components/reactbits/AnimatedList';
+import { CallChip } from './components/reactbits/CallChip';
 import { Counter } from './components/reactbits/Counter';
 import { FadeContent } from './components/reactbits/FadeContent';
 import { GradientText } from './components/reactbits/GradientText';
+import { HoldButton } from './components/reactbits/HoldButton';
+import { LatticeLoader } from './components/reactbits/LatticeLoader';
 import { RubberSegment } from './components/reactbits/RubberSegment';
+import { SlideCommit } from './components/reactbits/SlideCommit';
 import { SpotlightCard } from './components/reactbits/SpotlightCard';
+import { SquishSwitch } from './components/reactbits/SquishSwitch';
+import { StarBorder } from './components/reactbits/StarBorder';
+import { StatusMark } from './components/reactbits/StatusMark';
 import { TextType } from './components/reactbits/TextType';
+import { ThoughtLine } from './components/reactbits/ThoughtLine';
 
 interface WorkItem {
   id: string;
@@ -50,6 +58,11 @@ export function App() {
   const [prResult, setPrResult] = useState<PrResult | null>(null);
 
   const eventSourceRef = useRef<EventSource | null>(null);
+  const traceEndRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    traceEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, [steps.length, plan]);
 
   useEffect(() => {
     fetch('/api/work-items')
@@ -163,9 +176,7 @@ export function App() {
             <TextType text="Plan → Implement via MCP → Verify with Vitest → Human Approval Gate" />
           </p>
         </div>
-        <div className="status-pill" data-status={runStatus}>
-          Status: <strong>{runStatus}</strong>
-        </div>
+        <StatusMark status={runStatus} />
       </header>
 
       <div className="grid">
@@ -220,22 +231,21 @@ export function App() {
                     <p>{selectedItem.description}</p>
                   </div>
                   <div className="run-controls">
-                    <label className="checkbox-label">
-                      <input
-                        type="checkbox"
-                        checked={dryRun}
-                        onChange={(e) => setDryRun(e.target.checked)}
-                      />
-                      Dry-run PR
-                    </label>
-                    <button
-                      type="button"
-                      className="primary-btn"
-                      onClick={handleRun}
-                      disabled={runStatus === 'running'}
-                    >
-                      {runStatus === 'running' ? 'Running...' : 'Run Agent'}
-                    </button>
+                    <SquishSwitch
+                      label="Dry-run PR"
+                      checked={dryRun}
+                      onChange={setDryRun}
+                    />
+                    <StarBorder disabled={runStatus === 'running'}>
+                      <button
+                        type="button"
+                        className="primary-btn"
+                        onClick={handleRun}
+                        disabled={runStatus === 'running'}
+                      >
+                        {runStatus === 'running' ? 'Running...' : 'Run Agent'}
+                      </button>
+                    </StarBorder>
                   </div>
                 </div>
                 {errorMsg && <div className="error-banner">{errorMsg}</div>}
@@ -245,64 +255,64 @@ export function App() {
 
           <FadeContent delayMs={80}>
             <SpotlightCard as="section" className="trace-panel">
-              <h2>Live Step Trace (SSE)</h2>
-              {plan && (
-                <div className="plan-box">
-                  <strong>Plan</strong>
-                  <pre>{plan}</pre>
-                </div>
-              )}
-              {steps.length === 0 ? (
-                <p className="muted">Select a work item and click Run Agent.</p>
-              ) : (
-                <ol className="step-list">
-                  {steps.map((s) => (
-                    <li key={s.step_index} className="step-item">
-                      <div className="step-head">
-                        <span className="step-badge">{s.phase}</span>
-                        <code>{s.tool}</code>
-                        <span className="muted">
-                          {s.duration_ms}ms · {s.tokens_in + s.tokens_out} tok
-                        </span>
-                      </div>
-                      <pre className="step-args">
-                        {JSON.stringify(s.args, null, 2)}
-                      </pre>
-                    </li>
-                  ))}
-                </ol>
-              )}
+              <div className="panel-header">
+                <h2>Live Step Trace (SSE)</h2>
+                {runStatus === 'running' && <LatticeLoader />}
+              </div>
+              {plan && <ThoughtLine label="Plan" content={plan} />}
+              <div className="trace-scroll">
+                {steps.length === 0 ? (
+                  <p className="muted">
+                    Select a work item and click Run Agent.
+                  </p>
+                ) : (
+                  <ol className="trace-list">
+                    {steps.map((s) => (
+                      <CallChip
+                        key={s.step_index}
+                        phase={s.phase}
+                        tool={s.tool}
+                        args={s.args}
+                        result={s.result}
+                        durationMs={s.duration_ms}
+                        tokens={s.tokens_in + s.tokens_out}
+                      />
+                    ))}
+                  </ol>
+                )}
+                <div ref={traceEndRef} />
+              </div>
             </SpotlightCard>
           </FadeContent>
 
           <FadeContent delayMs={120}>
             <SpotlightCard as="section" className="diff-panel">
-              <div className="panel-header">
+              <div className="panel-header diff-header">
                 <h2>Diff Viewer &amp; Approval Gate</h2>
-                {runStatus === 'awaiting_approval' && (
-                  <div className="approval-actions">
-                    <input
-                      type="text"
-                      placeholder="Rejection reason (optional)"
-                      value={rejectReason}
-                      onChange={(e) => setRejectReason(e.target.value)}
-                    />
-                    <button
-                      type="button"
-                      className="reject-btn"
-                      onClick={handleReject}
-                    >
-                      Reject
-                    </button>
-                    <button
-                      type="button"
-                      className="approve-btn"
-                      onClick={handleApprove}
-                    >
-                      Approve &amp; Open PR
-                    </button>
-                  </div>
-                )}
+                <div className="approval-actions">
+                  <input
+                    type="text"
+                    aria-label="Rejection reason"
+                    placeholder="Rejection reason (required)"
+                    value={rejectReason}
+                    onChange={(e) => setRejectReason(e.target.value)}
+                    disabled={!diff || runStatus !== 'awaiting_approval'}
+                  />
+                  <HoldButton
+                    label="Hold to Reject"
+                    disabled={
+                      !diff ||
+                      runStatus !== 'awaiting_approval' ||
+                      !rejectReason.trim()
+                    }
+                    onConfirm={handleReject}
+                  />
+                  <SlideCommit
+                    label="Slide to Approve"
+                    disabled={!diff || runStatus !== 'awaiting_approval'}
+                    onCommit={handleApprove}
+                  />
+                </div>
               </div>
 
               {prResult && (
@@ -330,8 +340,11 @@ export function App() {
                           ? 'diff-hunk'
                           : '';
                     return (
-                      <div key={idx} className={cls}>
-                        {line}
+                      <div key={idx} className={`diff-row ${cls}`.trim()}>
+                        <span className="diff-lineno" aria-hidden="true">
+                          {idx + 1}
+                        </span>
+                        <span className="diff-text">{line}</span>
                       </div>
                     );
                   })}
