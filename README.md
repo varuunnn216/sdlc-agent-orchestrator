@@ -1,65 +1,71 @@
 # SDLC Agent Orchestrator
 
-A portfolio demo of an autonomous SDLC agent that picks a ticket (bug or user story) from a mock backlog, plans the change, edits a React + TypeScript sample app through scoped MCP tools, verifies with Vitest, and pauses at a human approval gate before committing or opening a pull request.
+[![CI](https://github.com/varuunnn216/sdlc-agent-orchestrator/actions/workflows/ci.yml/badge.svg)](https://github.com/varuunnn216/sdlc-agent-orchestrator/actions/workflows/ci.yml)
 
-> Uses mock data only (`MockShop` storefront and seeded backlog).
+Autonomous SDLC agent demo that picks a backlog ticket, edits a React + TypeScript storefront through scoped MCP tools, verifies changes with Vitest, and pauses at a human approval gate before committing or opening a PR.
+
+**Live Demo:** https://sdlc-ai-flow.vercel.app/
+
+## What it does
+- **Ticket-to-patch agent loop:** Streams live reasoning and tool calls over SSE from FastAPI while an LLM agent plans and implements bug fixes or user stories on an isolated copy of `sample-app/`.
+- **Scoped MCP tool server:** Exposes sandboxed file, search, and test tools (`mcp_server/`) so the agent cannot escape the isolated working copy or inherit host secrets during test execution.
+- **Automated Vitest verification:** Runs the `sample-app` Vitest suite inside the loop (up to 2 retries on failure) before surfacing the diff.
+- **Human-in-the-loop approval gate:** Pauses before any git commit or GitHub PR creation (`ALLOW_REAL_PR=false` by default; uses mock `MockShop` data and seeded backlog).
 
 ## Architecture
 
 ```mermaid
 flowchart LR
     UI["React UI"] -->|"REST + SSE"| API["FastAPI"]
-    API --> Agent["Agent Loop (Anthropic SDK)"]
+    API --> Agent["Agent Loop (Groq / Cerebras / Gemini)"]
     Agent -->|"Scoped MCP Tools"| Work["Isolated /sample-app Copy"]
     Work -->|"Vitest"| Verify["Verify (max 2 retries)"]
     Verify --> Gate{"Human Approval"}
-    Gate -->|"Approve"| GitHub["open_pr() (GitHub API / dry-run)"]
-    Gate -->|"Reject"| Log["Log Reason (no commit)"]
+    Gate -->|"Approved"| PR["Git Commit / PR"]
 ```
 
-See [`docs/architecture.md`](docs/architecture.md) for the detailed component diagram and guardrails.
+## Results
 
-## Repository Layout
+Recorded from [`evals/results/latest.md`](evals/results/latest.md) (dry-run, isolated working copies):
 
-- `sample-app/` — React + TypeScript + Vite mock storefront (`MockShop`) with a passing Vitest suite (7 tests).
-- `backlog/` — `stories.json` (10 stories) and `bugs.json` (6 bugs written as user reports).
-- `bugs/patches/` — 6 git patches (`BUG-1.patch`..`BUG-6.patch`), each breaking at least one test.
-- `stories/tests/` — 10 Vitest acceptance tests (`STORY-1.test.tsx`..`STORY-10.test.tsx`).
-- `scripts/` — `apply_case.py <id>` and `reset.py` for isolated working copies.
-- `mcp_server/` — Python MCP server (`list_work_items`, `get_work_item`, `read_file`, `write_file`, `run_tests`, `open_pr`).
-- `agent/` — Anthropic SDK tool-use loop with planning, retry limits, token/step caps, JSON step logging, and approval gate.
-- `api/` — FastAPI backend with SSE live step streaming and `/approve` / `/reject` endpoints.
-- `ui/` — Single-page React + TypeScript + Vite UI (backlog list, Run button, live SSE trace, diff viewer, Approve/Reject).
-- `evals/` — `cases.jsonl` (15 cases; `BUG-6` held out as smoke test), `run.py`, and `results/latest.md`.
-- `tests/` — Unit tests for MCP path scoping, agent loop guardrails, eval runner, and FastAPI endpoints (20 tests).
+| Case | Type | Provider | Model | Result | Agent Failures | Infra Failures |
+| :--- | :--- | :--- | :--- | :---: | :---: | :---: |
+| `BUG-1` | smoke (`held-out`) | `groq` | `openai/gpt-oss-120b` | `INFRA` (quota limit) | 0 | 1 |
 
-## Quickstart (Local)
+*(Full 15-case evaluation suite requires live LLM API quota; run `python evals/run.py` locally with your own keys to populate complete pass-rate metrics.)*
 
-1. **Configure environment**
+## Tech stack
+- **Backend & Agent:** Python 3.12, FastAPI, SSE, MCP Server, Ruff, Pytest
+- **LLM Providers (failover):** Groq (`openai/gpt-oss-120b`), Cerebras (`gpt-oss-120b`), Gemini (`gemini-3.6-flash`), optional Anthropic SDK
+- **Frontend & Sample App:** React, TypeScript, Vite, Tailwind CSS, Vitest
+- **Deployment:** Docker Compose, Render (`render.yaml`), Vercel (`sdlc-ai-flow.vercel.app`)
+
+## Run locally
+
+1. **Install Python & Node dependencies:**
+   ```bash
+   python3 -m venv .venv
+   source .venv/bin/activate
+   pip install -r requirements.txt
+   cd sample-app && npm install && cd ..
+   cd ui && npm install && cd ..
+   ```
+
+2. **Configure environment:**
    ```bash
    cp .env.example .env
-   # Set ANTHROPIC_API_KEY (and GITHUB_TOKEN for live PRs)
    ```
+   Env vars in `.env.example`: `LLM_PROVIDER_ORDER`, `GROQ_API_KEY`, `GROQ_MODEL`, `CEREBRAS_API_KEY`, `CEREBRAS_MODEL`, `GEMINI_API_KEY`, `GEMINI_MODEL`, `ANTHROPIC_API_KEY`, `GITHUB_TOKEN`, `GITHUB_REPO`, `ALLOW_REAL_PR`, `DEMO_MAX_RUNS_PER_IP_PER_DAY`, `DEMO_MAX_GLOBAL_RUNS_PER_DAY`.
 
-2. **Install Python & Node dependencies**
+3. **Start backend & UI:**
    ```bash
-   python3.12 -m venv .venv
-   .venv/bin/pip install -r requirements.txt
-   (cd sample-app && npm ci)
-   (cd ui && npm ci)
-   ```
-
-3. **Start the API and UI**
-   ```bash
-   # Terminal 1
-   .venv/bin/uvicorn api.main:app --reload --port 8000
-
-   # Terminal 2
+   uvicorn api.main:app --reload --port 8000
+   # In a second terminal:
    cd ui && npm run dev
    ```
-   Open `http://localhost:5173`.
+   Open `http://localhost:5173`. Or run both via Docker Compose: `docker compose up --build -d`.
 
-## Running Tests & Evals
+## Tests and evals
 
 ```bash
 # Python lint & unit tests (MCP scoping, agent loop, evals, API)
@@ -69,29 +75,16 @@ See [`docs/architecture.md`](docs/architecture.md) for the detailed component di
 # Sample app Vitest suite
 cd sample-app && npm test
 
-# Run 15-case evaluation suite (dry-run, isolated working copies; requires ANTHROPIC_API_KEY)
+# Run 15-case evaluation suite (isolated working copies; requires LLM API key)
 .venv/bin/python evals/run.py
-# Or run the held-out smoke test:
+# Or run a held-out smoke case:
 .venv/bin/python evals/run.py --case BUG-6
 ```
 
-## Deployment Steps (Docker Compose)
+## Limitations and what I would do next
+- **In-memory run store:** `api/main.py` stores active runs in `RUNS`, so restarting the API clears active UI run state (JSON step logs remain under `logs/`). Next: persist run state in Redis or Postgres.
+- **No user authentication:** Intended for local/demo use with IP rate limits (`DEMO_MAX_RUNS_PER_IP_PER_DAY`). Next: add GitHub OAuth for multi-user workspaces.
+- **Symlinked `node_modules`:** `scripts/reset.py` symlinks `sample-app/node_modules` into isolated copies for speed, assuming no new npm packages are installed by the agent.
 
-1. Ensure `.env` exists with `ANTHROPIC_API_KEY` and `GITHUB_TOKEN` (and `GITHUB_REPO=owner/repo`).
-2. Build and start both containers:
-   ```bash
-   docker compose up --build -d
-   ```
-3. Access the UI on port `5173` (Nginx proxies `/api/` to the FastAPI container on port `8000` with buffering disabled for SSE).
-4. Check health:
-   ```bash
-   curl http://localhost:8000/api/health
-   ```
-
-## Limitations
-
-- **In-memory run store**: `api/main.py` stores active runs in an in-memory dictionary (`RUNS`), so restarting the API server clears active UI run state (JSON step logs remain on disk under `logs/`).
-- **No authentication**: The FastAPI endpoints and React UI have no user authentication; intended for local/demo use only.
-- **Symlinked `node_modules`**: `scripts/reset.py` symlinks `sample-app/node_modules` into isolated working copies for speed, assuming the agent does not need to install new npm packages.
-- **Live evals require API key**: `evals/results/latest.md` is not populated until `evals/run.py` is executed with a valid `ANTHROPIC_API_KEY`.
-- **GitHub workflow push scope**: Updating `.github/workflows/ci.yml` requires a GitHub PAT with the `workflow` scope (or SSH push).
+## License
+[MIT](LICENSE) © 2026 Varun Singh
