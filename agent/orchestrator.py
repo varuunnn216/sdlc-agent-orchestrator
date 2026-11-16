@@ -77,7 +77,7 @@ class AgentConfig:
         default_factory=lambda: os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-5-20250929")
     )
     gemini_model: str = field(
-        default_factory=lambda: os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
+        default_factory=lambda: os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
     )
     max_tool_calls: int = 15
     max_tokens_per_run: int = 50_000
@@ -179,7 +179,10 @@ def _run_gemini(
     if not api_key or api_key == "your-gemini-api-key-here":
         raise ValueError("GEMINI_API_KEY is required when using provider='gemini'.")
 
-    client = genai.Client(api_key=api_key)
+    client = genai.Client(
+        api_key=api_key,
+        http_options=types.HttpOptions(timeout=30000),
+    )
     total_tokens = 0
     tool_calls = 0
     test_failures = 0
