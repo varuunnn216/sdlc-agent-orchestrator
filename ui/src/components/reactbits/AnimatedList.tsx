@@ -1,4 +1,5 @@
 import { type KeyboardEvent, type ReactNode } from 'react';
+import { useRipple } from './Ripple';
 import './AnimatedList.css';
 
 interface AnimatedListProps<T extends { id: string }> {
@@ -7,6 +8,33 @@ interface AnimatedListProps<T extends { id: string }> {
   onSelect: (id: string) => void;
   renderItem: (item: T, isSelected: boolean) => ReactNode;
   ariaLabel: string;
+}
+
+function AnimatedListItem({
+  isSelected,
+  delayMs,
+  onSelect,
+  children,
+}: {
+  isSelected: boolean;
+  delayMs: number;
+  onSelect: () => void;
+  children: ReactNode;
+}) {
+  const { trigger, rippleLayer } = useRipple();
+  return (
+    <li
+      role="option"
+      aria-selected={isSelected}
+      className={`rb-animated-list-item ${isSelected ? 'selected' : ''}`.trim()}
+      style={{ animationDelay: `${delayMs}ms` }}
+      onPointerDown={trigger}
+      onClick={onSelect}
+    >
+      {children}
+      {rippleLayer}
+    </li>
+  );
 }
 
 export function AnimatedList<T extends { id: string }>({
@@ -55,17 +83,14 @@ export function AnimatedList<T extends { id: string }>({
       {items.map((item, idx) => {
         const isSelected = item.id === selectedId;
         return (
-          <li
+          <AnimatedListItem
             key={item.id}
-            role="option"
-            aria-selected={isSelected}
-            data-spark="true"
-            className={`rb-animated-list-item ${isSelected ? 'selected' : ''}`.trim()}
-            style={{ animationDelay: `${Math.min(idx, 10) * 18}ms` }}
-            onClick={() => onSelect(item.id)}
+            isSelected={isSelected}
+            delayMs={Math.min(idx, 10) * 18}
+            onSelect={() => onSelect(item.id)}
           >
             {renderItem(item, isSelected)}
-          </li>
+          </AnimatedListItem>
         );
       })}
     </ul>

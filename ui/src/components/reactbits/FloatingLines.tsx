@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import './LightRays.css';
+import './FloatingLines.css';
 
-interface LightRaysProps {
-  raysColor?: string;
+interface FloatingLinesProps {
   status?: string;
+  interactive?: boolean;
+  clickEffect?: boolean;
 }
 
 const VERT_SRC = `
@@ -22,39 +23,56 @@ uniform float u_time;
 uniform vec2 u_res;
 uniform vec3 u_color;
 uniform float u_brightness;
+uniform float u_lines;
+uniform vec2 u_mouse;
+uniform float u_mouseActive;
+uniform vec2 u_click;
+uniform float u_clickStrength;
 
 void main() {
   vec2 uv = v_uv;
-  vec2 origin = vec2(0.5, 1.08);
-  vec2 d = uv - origin;
-  d.x *= u_res.x / max(u_res.y, 1.0);
+  float aspect = u_res.x / max(u_res.y, 1.0);
+  vec2 p = vec2(uv.x * aspect, uv.y);
 
-  float angle = atan(d.y, d.x);
-  float dist = length(d);
+  // Subtle cursor parting
+  vec2 m = vec2(u_mouse.x * aspect, u_mouse.y);
+  vec2 dm = p - m;
+  float md = length(dm);
+  float part = exp(-md * md * 18.0) * 0.045 * u_mouseActive;
+  float yShift = (dm.y >= 0.0 ? 1.0 : -1.0) * part;
 
-  float ray1 = sin(angle * 9.0 + u_time * 0.25) * 0.5 + 0.5;
-  float ray2 = sin(angle * 15.0 - u_time * 0.18 + 1.3) * 0.5 + 0.5;
-  float rays = pow(ray1 * 0.6 + ray2 * 0.4, 2.2);
+  // Click curl distortion
+  vec2 c = vec2(u_click.x * aspect, u_click.y);
+  vec2 dc = p - c;
+  float cd = length(dc);
+  float curl = sin(cd * 26.0 - (1.0 - u_clickStrength) * 8.0)
+             * exp(-cd * 6.0) * 0.035 * u_clickStrength;
 
-  float spread = smoothstep(1.35, 0.05, dist);
-  float topFade = smoothstep(0.0, 0.95, uv.y);
-  float alpha = (rays * 0.72 + 0.28) * spread * topFade * u_brightness;
+  float acc = 0.0;
+  float count = u_lines;
+  for (int i = 0; i < 16; i++) {
+    float fi = float(i);
+    if (fi >= count) break;
+    float base = (fi + 0.5) / count;
+    float wave = sin(uv.x * (3.2 + fi * 0.23) + u_time * (0.55 + fi * 0.04) + fi * 1.1) * 0.035
+               + cos(uv.x * 1.7 - u_time * 0.32 + fi * 0.7) * 0.02;
+    float lineY = base + wave + yShift + curl;
+    float dist = abs(uv.y - lineY);
+    float w = 0.0022;
+    float line = smoothstep(w * 2.4, 0.0, dist);
+    acc += line * (0.45 + 0.55 * sin(fi * 1.7 + u_time * 0.4) * 0.5 + 0.25);
+  }
 
+  float alpha = clamp(acc * u_brightness, 0.0, 0.85);
   gl_FragColor = vec4(u_color * alpha, alpha);
 }
 `;
 
-function hexToRgb(hex: string): [number, number, number] {
-  const clean = hex.replace('#', '');
-  const num = parseInt(clean, 16);
-  if (Number.isNaN(num)) return [0.81, 0.98, 0.99];
-  return [((num >> 16) & 255) / 255, ((num >> 8) & 255) / 255, (num & 255) / 255];
-}
-
-export default function LightRays({
-  raysColor = '#CFFAFE',
+export default function FloatingLines({
   status = 'idle',
-}: LightRaysProps) {
+  interactive = true,
+  clickEffect = true,
+}: FloatingLinesProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const statusRef = useRef(status);
   const pulseUntilRef = useRef<number>(0);
@@ -145,25 +163,53 @@ export default function LightRays({
     const uRes = gl.getUniformLocation(prog, 'u_res');
     const uColor = gl.getUniformLocation(prog, 'u_color');
     const uBrightness = gl.getUniformLocation(prog, 'u_brightness');
+    const uLines = gl.getUniformLocation(prog, 'u_lines');
+    const uMouse = gl.getUniformLocation(prog, 'u_mouse');
+    const uMouseActive = gl.getUniformLocation(prog, 'u_mouseActive');
+    const uClick = gl.getUniformLocation(prog, 'u_click');
+    const uClickStrength = gl.getUniformLocation(prog, 'u_clickStrength');
 
     const resize = () => {
       const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
-      canvas.width = Math.floor(canvas.clientWidth * dpr);
-      canvas.height = Math.floor(canvas.clientHeight * dpr);
+      canvas.width = Math.floor(window.innerWidth * dpr);
+      canvas.height = Math.floor(window.innerHeight * dpr);
       gl.viewport(0, 0, canvas.width, canvas.height);
     };
-
     resize();
     window.addEventListener('resize', resize);
 
-    const [baseR, baseG, baseB] = hexToRgb(raysColor);
+    let mouseX = 0.5;
+    let mouseY = 0.5;
+    let mouseActive = 0;
+    let clickX = 0.5;
+    let clickY = 0.5;
+    let clickStrength = 0;
+
+    const onPointerMove = (e: PointerEvent) => {
+      if (!interactive) return;
+      mouseX = e.clientX / Math.max(window.innerWidth, 1);
+      mouseY = 1 - e.clientY / Math.max(window.innerHeight, 1);
+      mouseActive = 1;
+    };
+
+    const onPointerDown = (e: PointerEvent) => {
+      if (!clickEffect) return;
+      clickX = e.clientX / Math.max(window.innerWidth, 1);
+      clickY = 1 - e.clientY / Math.max(window.innerHeight, 1);
+      clickStrength = 1;
+    };
+
+    window.addEventListener('pointermove', onPointerMove, { passive: true });
+    window.addEventListener('pointerdown', onPointerDown, { passive: true });
+
+    const [baseR, baseG, baseB] = [0.894, 0.894, 0.906]; // #E4E4E7 silver
     const [errR, errG, errB] = [0.937, 0.267, 0.267]; // #EF4444
 
     let rafId = 0;
     let lastFrame = 0;
     let simTime = 0;
-    let curSpeed = 0.6;
-    let curBrightness = 0.2;
+    let curSpeed = 0.35;
+    let curBrightness = 0.34;
     let curRedMix = 0;
 
     const render = (now: number) => {
@@ -178,23 +224,23 @@ export default function LightRays({
 
       const s = statusRef.current;
       const inPulse = now < pulseUntilRef.current;
-      let targetSpeed = 0.6;
-      let targetBrightness = 0.2;
+      let targetSpeed = 0.35;
+      let targetBrightness = 0.34;
       let targetRed = 0;
 
       if (inPulse && pulseKindRef.current === 'done') {
-        targetSpeed = 1.4;
-        targetBrightness = 0.46;
+        targetSpeed = 1.1;
+        targetBrightness = 0.72;
       } else if (inPulse && pulseKindRef.current === 'failed') {
-        targetSpeed = 1.0;
-        targetBrightness = 0.36;
+        targetSpeed = 0.7;
+        targetBrightness = 0.62;
         targetRed = 1;
       } else if (s === 'running') {
-        targetSpeed = 1.5;
-        targetBrightness = 0.34;
+        targetSpeed = 0.95;
+        targetBrightness = 0.58;
       } else if (s === 'awaiting_approval') {
-        targetSpeed = 0.7;
-        targetBrightness = 0.24 + 0.07 * Math.sin(now * 0.0022);
+        targetSpeed = 0.4;
+        targetBrightness = 0.34 + 0.12 * Math.sin(now * 0.0022);
       }
 
       const ease = 1 - Math.exp(-dt / 0.22); // ~600ms eased transition
@@ -202,6 +248,11 @@ export default function LightRays({
       curBrightness += (targetBrightness - curBrightness) * ease;
       curRedMix += (targetRed - curRedMix) * ease;
       simTime += dt * curSpeed;
+
+      clickStrength = Math.max(0, clickStrength - dt * 1.6);
+      mouseActive = Math.max(0, mouseActive - dt * 0.4);
+
+      const isMobile = window.innerWidth <= 640;
 
       gl.clearColor(0, 0, 0, 0);
       gl.clear(gl.COLOR_BUFFER_BIT);
@@ -217,6 +268,11 @@ export default function LightRays({
         baseB + (errB - baseB) * curRedMix
       );
       gl.uniform1f(uBrightness, curBrightness);
+      gl.uniform1f(uLines, isMobile ? 7.0 : 14.0);
+      gl.uniform2f(uMouse, mouseX, mouseY);
+      gl.uniform1f(uMouseActive, mouseActive);
+      gl.uniform2f(uClick, clickX, clickY);
+      gl.uniform1f(uClickStrength, clickStrength);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     };
 
@@ -233,20 +289,22 @@ export default function LightRays({
     return () => {
       window.cancelAnimationFrame(rafId);
       window.removeEventListener('resize', resize);
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerdown', onPointerDown);
       document.removeEventListener('visibilitychange', onVisibility);
       gl.deleteBuffer(buf);
       gl.deleteProgram(prog);
       gl.deleteShader(vs);
       gl.deleteShader(fs);
     };
-  }, [raysColor, useFallback]);
+  }, [interactive, clickEffect, useFallback]);
 
   return (
-    <div className="rb-light-rays-wrap" aria-hidden="true">
+    <div className="rb-floating-lines-wrap" aria-hidden="true">
       {useFallback ? (
-        <div className="rb-light-rays-fallback" />
+        <div className="rb-floating-lines-fallback" />
       ) : (
-        <canvas ref={canvasRef} className="rb-light-rays-canvas" />
+        <canvas ref={canvasRef} className="rb-floating-lines-canvas" />
       )}
     </div>
   );

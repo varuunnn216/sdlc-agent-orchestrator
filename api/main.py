@@ -4,14 +4,16 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import sys
 import threading
 import uuid
 from dataclasses import asdict, dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -74,12 +76,58 @@ class RunRecord:
 
 
 RUNS: dict[str, RunRecord] = {}
+DEMO_USAGE_LOCK = threading.Lock()
+DEMO_IP_COUNTS: dict[tuple[str, str], int] = {}
+DEMO_GLOBAL_COUNTS: dict[str, int] = {}
+
+
+def _today_key() -> str:
+    return datetime.now(UTC).strftime("%Y-%m-%d")
+
+
+def _ip_daily_limit() -> int:
+    return max(1, int(os.getenv("DEMO_MAX_RUNS_PER_IP_PER_DAY", "5")))
+
+
+def _global_daily_limit() -> int:
+    return max(1, int(os.getenv("DEMO_MAX_GLOBAL_RUNS_PER_DAY", "50")))
+
+
+def _allow_real_pr() -> bool:
+    return os.getenv("ALLOW_REAL_PR", "").strip().lower() in {"1", "true", "yes"}
+
+
+def _client_ip(request: Request) -> str:
+    forwarded = request.headers.get("x-forwarded-for", "")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
 
 
 @app.get("/api/health")
 def health() -> dict[str, str]:
     """Health check endpoint."""
     return {"status": "ok"}
+
+
+@app.get("/api/demo-status")
+def demo_status(request: Request) -> dict[str, Any]:
+    """Return remaining public demo run quota and PR guardrail status."""
+    day = _today_key()
+    ip = _client_ip(request)
+    ip_limit = _ip_daily_limit()
+    global_limit = _global_daily_limit()
+    with DEMO_USAGE_LOCK:
+        ip_used = DEMO_IP_COUNTS.get((day, ip), 0)
+        global_used = DEMO_GLOBAL_COUNTS.get(day, 0)
+    return {
+        "demo_mode": True,
+        "ip_remaining": max(0, ip_limit - ip_used),
+        "ip_limit": ip_limit,
+        "global_remaining": max(0, global_limit - global_used),
+        "global_limit": global_limit,
+        "real_pr_enabled": _allow_real_pr(),
+    }
 
 
 @app.get("/api/work-items")
@@ -89,8 +137,22 @@ def get_work_items(type: str | None = None, status: str | None = None) -> list[d
 
 
 @app.post("/api/runs")
-def start_run(req: StartRunRequest) -> dict[str, Any]:
+def start_run(request: Request, req: StartRunRequest) -> dict[str, Any]:
     """Apply a case to an isolated working copy and start the agent in a background thread."""
+    day = _today_key()
+    ip = _client_ip(request)
+    ip_limit = _ip_daily_limit()
+    global_limit = _global_daily_limit()
+
+    with DEMO_USAGE_LOCK:
+        ip_used = DEMO_IP_COUNTS.get((day, ip), 0)
+        global_used = DEMO_GLOBAL_COUNTS.get(day, 0)
+        if ip_used >= ip_limit or global_used >= global_limit:
+            raise HTTPException(
+                status_code=429,
+                detail="Daily demo run limit reached. Please try again tomorrow or run locally with your own API key.",
+            )
+
     run_id = f"{req.item_id.lower()}-{uuid.uuid4().hex[:8]}"
     workdir = RUNS_WORK_ROOT / run_id
     try:
@@ -98,7 +160,12 @@ def start_run(req: StartRunRequest) -> dict[str, Any]:
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
-    cfg = AgentConfig(workdir=workdir, dry_run=req.dry_run)
+    with DEMO_USAGE_LOCK:
+        DEMO_IP_COUNTS[(day, ip)] = DEMO_IP_COUNTS.get((day, ip), 0) + 1
+        DEMO_GLOBAL_COUNTS[day] = DEMO_GLOBAL_COUNTS.get(day, 0) + 1
+
+    effective_dry_run = True if not _allow_real_pr() else req.dry_run
+    cfg = AgentConfig(workdir=workdir, dry_run=effective_dry_run)
     initial_state = RunState(run_id=run_id, item_id=req.item_id, status="running")
     record = RunRecord(
         run_id=run_id,
@@ -205,3 +272,24 @@ def reject(run_id: str, req: RejectRunRequest) -> dict[str, Any]:
     updated = reject_run(record.state, reason=req.reason, logger=logger)
     record.state = updated
     return asdict(updated)
+
+
+@app.post("/api/runs/{run_id}/cancel")
+def cancel(run_id: str) -> dict[str, Any]:
+    """Cancel an in-progress run safely."""
+    record = RUNS.get(run_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail=f"Run not found: {run_id}")
+
+    if record.state.status == "running":
+        record.state.status = "cancelled"
+        record.publish(
+            {
+                "type": "done",
+                "run_id": run_id,
+                "status": "cancelled",
+                "diff": "",
+                "tests_passed": False,
+            }
+        )
+    return asdict(record.state)

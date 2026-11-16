@@ -1,3 +1,4 @@
+import { useRipple } from './Ripple';
 import './SquishSwitch.css';
 
 interface SquishSwitchProps {
@@ -7,8 +8,13 @@ interface SquishSwitchProps {
 }
 
 export function SquishSwitch({ checked, onChange, label }: SquishSwitchProps) {
+  const { trigger, rippleLayer } = useRipple();
   return (
-    <label className="rb-squish-switch">
+    <label
+      className="rb-squish-switch rb-ripple-host"
+      onPointerDown={trigger}
+      style={{ borderRadius: '999px', padding: '4px 8px 4px 4px' }}
+    >
       <input
         type="checkbox"
         role="switch"
@@ -21,6 +27,7 @@ export function SquishSwitch({ checked, onChange, label }: SquishSwitchProps) {
         <span className="rb-squish-thumb" />
       </span>
       <span>{label}</span>
+      {rippleLayer}
     </label>
   );
 }

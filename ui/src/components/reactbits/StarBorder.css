@@ -1,0 +1,44 @@
+.rb-star-border {
+  position: relative;
+  display: inline-flex;
+  padding: 1.5px;
+  border-radius: calc(var(--radius-md) + 2px);
+  overflow: hidden;
+}
+
+.rb-star-border-beam {
+  position: absolute;
+  inset: -120%;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    transparent 250deg,
+    rgba(228, 228, 231, 0.35) 295deg,
+    #fafafa 330deg,
+    transparent 360deg
+  );
+  animation: rb-star-spin 2.2s linear infinite;
+  pointer-events: none;
+}
+
+.rb-star-border-inner {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  border-radius: var(--radius-md);
+  background: var(--bg);
+}
+
+@keyframes rb-star-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rb-star-border-beam {
+    animation: none;
+    inset: 0;
+    background: var(--accent-border);
+  }
+}

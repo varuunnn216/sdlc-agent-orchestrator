@@ -1,8 +1,8 @@
 .rb-fade-content {
-  animation: rb-fade-in 220ms ease-out both;
+  animation: rbFadeSlideIn 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-@keyframes rb-fade-in {
+@keyframes rbFadeSlideIn {
   from {
     opacity: 0;
     transform: translateY(6px);
@@ -13,8 +13,26 @@
   }
 }
 
+.rb-scroll-reveal {
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 320ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.rb-scroll-reveal.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .rb-fade-content {
     animation: none;
+  }
+
+  .rb-scroll-reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
   }
 }

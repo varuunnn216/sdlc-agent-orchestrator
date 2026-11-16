@@ -1,0 +1,136 @@
+.rb-stepper {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 12px 16px;
+}
+
+.rb-stepper-desktop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.rb-stepper-item {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  gap: 8px;
+}
+
+.rb-stepper-item:last-child {
+  flex: 0 0 auto;
+}
+
+.rb-stepper-btn {
+  position: relative;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--subtle);
+  font-family: inherit;
+  font-size: 0.84rem;
+  font-weight: 500;
+  cursor: default;
+  white-space: nowrap;
+  transition: color 150ms ease, background 150ms ease, border-color 150ms ease;
+}
+
+.rb-stepper-btn:not(:disabled) {
+  cursor: pointer;
+}
+
+.rb-stepper-btn:not(:disabled):hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.rb-stepper-btn.active {
+  color: var(--text);
+  background: var(--accent-soft);
+  border-color: var(--accent-border);
+}
+
+.rb-stepper-btn.completed {
+  color: var(--muted);
+}
+
+.rb-stepper-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.rb-stepper-index {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.rb-stepper-btn.active .rb-stepper-index {
+  background: var(--text);
+  color: var(--bg);
+  border-color: var(--text);
+}
+
+.rb-stepper-btn.completed .rb-stepper-index {
+  background: rgba(34, 197, 94, 0.14);
+  color: var(--success);
+  border-color: rgba(34, 197, 94, 0.45);
+}
+
+.rb-stepper-connector {
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+  min-width: 12px;
+}
+
+.rb-stepper-connector.completed {
+  background: var(--border-strong);
+}
+
+.rb-stepper-mobile {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .rb-stepper-desktop {
+    display: none;
+  }
+
+  .rb-stepper-mobile {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .rb-stepper-mobile-count {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .rb-stepper-mobile-name {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text);
+  }
+}

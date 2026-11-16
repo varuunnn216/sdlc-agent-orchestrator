@@ -83,3 +83,64 @@ def test_run_lifecycle_approve_and_reject(tmp_path: Path) -> None:
         assert reject_res.status_code == 200
         assert reject_res.json()["status"] == "rejected"
         assert reject_res.json()["reject_reason"] == "Needs cleanup"
+
+
+def test_demo_status_and_rate_limit_guardrails(tmp_path: Path, monkeypatch) -> None:
+    from api.main import DEMO_GLOBAL_COUNTS, DEMO_IP_COUNTS
+
+    RUNS.clear()
+    DEMO_IP_COUNTS.clear()
+    DEMO_GLOBAL_COUNTS.clear()
+
+    monkeypatch.setenv("DEMO_MAX_RUNS_PER_IP_PER_DAY", "2")
+    monkeypatch.setenv("DEMO_MAX_GLOBAL_RUNS_PER_DAY", "10")
+    monkeypatch.delenv("ALLOW_REAL_PR", raising=False)
+
+    status_res = client.get("/api/demo-status")
+    assert status_res.status_code == 200
+    status_data = status_res.json()
+    assert status_data["demo_mode"] is True
+    assert status_data["ip_remaining"] == 2
+    assert status_data["ip_limit"] == 2
+    assert status_data["real_pr_enabled"] is False
+
+    seen_dry_runs: list[bool] = []
+
+    def fake_apply(case_id: str, workdir: Path) -> dict:
+        workdir.mkdir(parents=True, exist_ok=True)
+        return {"id": case_id}
+
+    def fake_run_agent(item_id: str, config, on_event=None) -> RunState:
+        seen_dry_runs.append(config.dry_run)
+        if on_event:
+            on_event({"type": "done", "status": "awaiting_approval", "diff": "+ok", "tests_passed": True})
+        return RunState(
+            run_id="temp",
+            item_id=item_id,
+            status="awaiting_approval",
+            diff="+ok",
+            tests_passed=True,
+        )
+
+    with (
+        patch("api.main.RUNS_WORK_ROOT", tmp_path),
+        patch("api.main.apply_case", side_effect=fake_apply),
+        patch("api.main.run_agent", side_effect=fake_run_agent),
+    ):
+        # Even if client requests dry_run=False, backend forces dry_run=True when ALLOW_REAL_PR is unset
+        r1 = client.post("/api/runs", json={"item_id": "BUG-1", "dry_run": False})
+        assert r1.status_code == 200
+        r2 = client.post("/api/runs", json={"item_id": "BUG-2", "dry_run": True})
+        assert r2.status_code == 200
+
+        # Third request from same IP exceeds cap of 2
+        r3 = client.post("/api/runs", json={"item_id": "BUG-3", "dry_run": True})
+        assert r3.status_code == 429
+        assert "Daily demo run limit reached" in r3.json()["detail"]
+
+        # Wait briefly so background threads finish
+        time.sleep(0.1)
+        assert seen_dry_runs == [True, True]
+
+    after_res = client.get("/api/demo-status").json()
+    assert after_res["ip_remaining"] == 0

@@ -43,13 +43,13 @@
 }
 
 .rb-squish-input:checked + .rb-squish-track {
-  background: rgba(34, 211, 238, 0.22);
-  border-color: var(--accent);
+  background: rgba(255, 255, 255, 0.2);
+  border-color: var(--accent-border);
 }
 
 .rb-squish-input:checked + .rb-squish-track .rb-squish-thumb {
   transform: translateX(16px);
-  background: var(--accent);
+  background: var(--text);
 }
 
 .rb-squish-input:focus-visible + .rb-squish-track {

@@ -1,0 +1,93 @@
+.rb-logo-loop {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  padding: 14px 0;
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    black 8%,
+    black 92%,
+    transparent
+  );
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent,
+    black 8%,
+    black 92%,
+    transparent
+  );
+}
+
+.rb-logo-track {
+  display: flex;
+  width: max-content;
+  animation: rbLogoScroll 28s linear infinite;
+}
+
+.rb-logo-loop:hover .rb-logo-track {
+  animation-play-state: paused;
+}
+
+.rb-logo-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-right: 12px;
+}
+
+.rb-logo-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 0.82rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.rb-logo-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  opacity: 0.65;
+}
+
+@keyframes rbLogoScroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rb-logo-loop {
+    mask-image: none;
+    -webkit-mask-image: none;
+    padding: 14px 16px;
+  }
+
+  .rb-logo-track {
+    animation: none;
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .rb-logo-group[aria-hidden='true'] {
+    display: none;
+  }
+
+  .rb-logo-group {
+    flex-wrap: wrap;
+    padding-right: 0;
+  }
+}
