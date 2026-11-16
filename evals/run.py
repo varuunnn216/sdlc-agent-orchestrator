@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import sys
 import time
@@ -208,6 +209,7 @@ def render_report(outcomes: list[CaseOutcome], model: str = "multi-provider") ->
 
 def main() -> None:
     load_dotenv()
+    os.environ.setdefault("LLM_SHORT_RETRY_MAX_S", "65")
     parser = argparse.ArgumentParser(description="Run SDLC Agent Orchestrator evals")
     parser.add_argument("--case", help="Run only a single case ID (e.g., BUG-6 smoke test)")
     parser.add_argument("--limit", type=int, help="Run only the first N cases")

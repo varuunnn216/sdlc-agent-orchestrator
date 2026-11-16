@@ -239,9 +239,10 @@ def _run_gemini(
             "You are an autonomous SDLC agent editing a React + TypeScript + Vite app.\n"
             "Rules:\n"
             "1. Only read/write files inside the working copy using the provided tools.\n"
-            "2. Implement the fix or feature cleanly without breaking existing tests.\n"
-            "3. Run `run_tests` after editing to verify all tests pass.\n"
-            "4. Stop as soon as `run_tests` passes."
+            "2. Only call the declared tools (get_work_item, read_file, write_file, run_tests). Never call repo_browser or any other undeclared tool.\n"
+            "3. Implement the fix or feature cleanly without breaking existing tests.\n"
+            "4. Run `run_tests` after editing to verify all tests pass.\n"
+            "5. Stop as soon as `run_tests` passes."
         ),
         tools=[types.Tool(function_declarations=declarations)],
         automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
@@ -408,9 +409,10 @@ def _run_multi_provider(
             "You are an autonomous SDLC agent editing a React + TypeScript + Vite app.\n"
             "Rules:\n"
             "1. Only read/write files inside the working copy using the provided tools.\n"
-            "2. Implement the fix or feature cleanly without breaking existing tests.\n"
-            "3. Run `run_tests` after editing to verify all tests pass.\n"
-            "4. Stop as soon as `run_tests` passes."
+            "2. Only call the declared tools (get_work_item, read_file, write_file, run_tests). Never call repo_browser or any other undeclared tool.\n"
+            "3. Implement the fix or feature cleanly without breaking existing tests.\n"
+            "4. Run `run_tests` after editing to verify all tests pass.\n"
+            "5. Stop as soon as `run_tests` passes."
         )
         messages: list[dict[str, Any]] = [
             {

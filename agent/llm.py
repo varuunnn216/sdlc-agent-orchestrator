@@ -360,6 +360,9 @@ def _call_openai_compat(
         raise _ProviderCallError(status_code=None, reason=type(exc).__name__) from exc
 
     if resp.status_code in (400, 401, 403):
+        if resp.status_code == 400 and "tool_use_failed" in resp.text:
+            logger.warning("Provider %s tool_use_failed (400): %s", provider, redact_secrets(resp.text))
+            raise _ProviderCallError(status_code=400, reason="tool_use_failed", config_error=False)
         logger.error("Provider %s config error (%s): %s", provider, resp.status_code, redact_secrets(resp.text))
         raise _ProviderCallError(
             status_code=resp.status_code,
@@ -615,7 +618,12 @@ def llm_call(
                     ) from err
 
                 if err.status_code == 429:
-                    if err.is_daily_quota or (err.retry_after_s is not None and err.retry_after_s > SHORT_RETRY_MAX_S):
+                    short_retry_max = float(
+                        os.getenv("LLM_SHORT_RETRY_MAX_S", str(SHORT_RETRY_MAX_S))
+                    )
+                    if err.is_daily_quota or (
+                        err.retry_after_s is not None and err.retry_after_s > short_retry_max
+                    ):
                         cooldown = (
                             _seconds_until_utc_midnight()
                             if err.is_daily_quota
@@ -630,7 +638,7 @@ def llm_call(
 
                     if attempt < MAX_ATTEMPTS_PER_PROVIDER:
                         wait_s = float(err.retry_after_s) if err.retry_after_s is not None else 1.0
-                        sleep_fn(min(SHORT_RETRY_MAX_S, max(0.1, wait_s)) + random.uniform(0.0, 0.25))
+                        sleep_fn(min(short_retry_max, max(0.1, wait_s)) + random.uniform(0.5, 1.0))
                         continue
 
                     _mark_cooldown(provider, 30.0, daily=False)
