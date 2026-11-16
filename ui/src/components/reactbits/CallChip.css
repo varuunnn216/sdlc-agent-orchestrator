@@ -4,8 +4,8 @@
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  padding: 10px 12px;
-  font-family: var(--font-mono);
+  padding: 12px 14px;
+  font-family: var(--font-body);
   animation: rb-trace-enter 150ms ease-out both;
 }
 
@@ -70,14 +70,18 @@
   background: var(--surface-2);
   color: var(--muted);
   border: 1px solid var(--border);
-  padding: 2px 7px;
-  border-radius: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-family: var(--font-body);
   font-size: 11px;
   font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .rb-call-chip-name {
-  font-size: 12.5px;
+  font-family: var(--font-body);
+  font-size: var(--text-body-size);
   font-weight: 600;
   color: var(--text);
 }
@@ -86,7 +90,9 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 11.5px;
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
   color: var(--muted);
 }
 
@@ -96,6 +102,7 @@
   gap: 5px;
   padding: 2px 8px;
   border-radius: 999px;
+  font-family: var(--font-body);
   font-size: 11px;
   font-weight: 600;
 }
@@ -119,12 +126,36 @@
   background: currentColor;
 }
 
+.rb-call-chip-json-wrap {
+  margin-top: 10px;
+  background: #060608;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
 .rb-call-chip-args {
-  margin: 8px 0 0;
-  padding-top: 8px;
-  border-top: 1px solid var(--border);
+  margin: 0;
   white-space: pre-wrap;
   word-break: break-word;
-  font-size: 11.5px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.5;
   color: var(--muted);
+}
+
+.rb-call-chip-toggle {
+  margin-top: 8px;
+  padding: 2px 0;
+  background: transparent;
+  border: none;
+  color: var(--accent);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.rb-call-chip-toggle:hover {
+  text-decoration: underline;
 }

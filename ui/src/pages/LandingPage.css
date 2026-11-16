@@ -129,8 +129,10 @@
 }
 
 .preview-step-num {
-  font-family: var(--font-mono);
+  font-family: var(--font-body);
+  font-variant-numeric: tabular-nums;
   font-size: 0.7rem;
+  font-weight: 600;
   color: var(--muted);
 }
 
