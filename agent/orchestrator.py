@@ -83,6 +83,7 @@ class AgentConfig:
     max_tool_calls: int = 15
     max_tokens_per_run: int = 50_000
     max_test_retries: int = 2
+    max_run_seconds: int = 180
     workdir: Path = DEFAULT_WORKDIR
     log_dir: Path = DEFAULT_LOG_DIR
     dry_run: bool = False
@@ -422,7 +423,12 @@ def _run_multi_provider(
             }
         ]
 
+        run_start = time.monotonic()
         while True:
+            if (time.monotonic() - run_start) > cfg.max_run_seconds:
+                state.status = "budget_exceeded"
+                state.error = f"Run time limit exceeded ({cfg.max_run_seconds}s)"
+                break
             if total_tokens >= cfg.max_tokens_per_run:
                 state.status = "budget_exceeded"
                 state.error = f"Token budget exceeded ({total_tokens} >= {cfg.max_tokens_per_run})"

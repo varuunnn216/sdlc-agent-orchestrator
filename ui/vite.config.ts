@@ -41,6 +41,9 @@ export default defineConfig({
   define: {
     __EVAL_STATS__: JSON.stringify(readEvalStats()),
   },
+  build: {
+    sourcemap: false,
+  },
   server: {
     port: 5173,
     proxy: {

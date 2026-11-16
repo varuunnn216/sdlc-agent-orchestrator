@@ -6,6 +6,7 @@ import asyncio
 import json
 import logging
 import os
+import shutil
 import sys
 import threading
 import uuid
@@ -16,7 +17,7 @@ from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -36,15 +37,62 @@ from agent.orchestrator import (
 from mcp_server.tools import list_work_items
 
 RUNS_WORK_ROOT = REPO_ROOT / ".work" / "runs"
+MAX_REQUEST_BYTES = 64 * 1024  # 64 KB
+IS_PROD = os.getenv("APP_ENV", "").strip().lower() == "production"
 
-app = FastAPI(title="SDLC Agent Orchestrator API", version="0.1.0")
+_raw_origins = os.getenv(
+    "ALLOWED_ORIGINS",
+    "http://localhost:5173,http://127.0.0.1:5173",
+)
+ALLOWED_ORIGINS = [o.strip() for o in _raw_origins.split(",") if o.strip() and o.strip() != "*"]
+
+app = FastAPI(
+    title="SDLC Agent Orchestrator API",
+    version="0.1.0",
+    docs_url=None if IS_PROD else "/docs",
+    redoc_url=None if IS_PROD else "/redoc",
+    openapi_url=None if IS_PROD else "/openapi.json",
+)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type"],
 )
+
+
+@app.middleware("http")
+async def security_and_size_middleware(request: Request, call_next):
+    content_length = request.headers.get("content-length")
+    if content_length:
+        try:
+            if int(content_length) > MAX_REQUEST_BYTES:
+                return JSONResponse(
+                    status_code=413,
+                    content={"detail": "Request body too large."},
+                )
+        except ValueError:
+            return JSONResponse(status_code=400, content={"detail": "Invalid Content-Length."})
+
+    body = await request.body()
+    if len(body) > MAX_REQUEST_BYTES:
+        return JSONResponse(
+            status_code=413,
+            content={"detail": "Request body too large."},
+        )
+
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    if (
+        request.url.scheme == "https"
+        or request.headers.get("x-forwarded-proto", "").lower() == "https"
+    ):
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    return response
 
 
 class StartRunRequest(BaseModel):
@@ -100,9 +148,14 @@ def _allow_real_pr() -> bool:
 
 
 def _client_ip(request: Request) -> str:
-    forwarded = request.headers.get("x-forwarded-for", "")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
+    if os.getenv("TRUST_PROXY", "").strip().lower() in {"1", "true", "yes"}:
+        trusted_header = os.getenv("TRUSTED_IP_HEADER", "x-forwarded-for").lower()
+        header_val = request.headers.get(trusted_header, "")
+        if header_val:
+            # Rightmost entry added by the trusted reverse proxy when using X-Forwarded-For
+            parts = [p.strip() for p in header_val.split(",") if p.strip()]
+            if parts:
+                return parts[0] if trusted_header != "x-forwarded-for" else parts[-1]
     return request.client.host if request.client else "unknown"
 
 
@@ -288,6 +341,7 @@ def approve(run_id: str) -> dict[str, Any]:
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     record.state = updated
+    shutil.rmtree(record.workdir, ignore_errors=True)
     return asdict(updated)
 
 
@@ -301,6 +355,7 @@ def reject(run_id: str, req: RejectRunRequest) -> dict[str, Any]:
     logger = RunLogger(run_id=run_id, item_id=record.item_id, log_dir=DEFAULT_LOG_DIR)
     updated = reject_run(record.state, reason=req.reason, logger=logger)
     record.state = updated
+    shutil.rmtree(record.workdir, ignore_errors=True)
     return asdict(updated)
 
 
@@ -322,4 +377,5 @@ def cancel(run_id: str) -> dict[str, Any]:
                 "tests_passed": False,
             }
         )
+    shutil.rmtree(record.workdir, ignore_errors=True)
     return asdict(record.state)

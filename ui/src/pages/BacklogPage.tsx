@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { apiUrl } from '../api';
 import { ErrorCard } from '../components/ErrorCard';
 import { AnimatedList } from '../components/reactbits/AnimatedList';
 import { CallChip } from '../components/reactbits/CallChip';
@@ -63,7 +64,7 @@ export function BacklogPage({
   }, [steps.length, plan]);
 
   useEffect(() => {
-    fetch('/api/work-items')
+    fetch(apiUrl('/api/work-items'))
       .then((res) => res.json())
       .then((data: WorkItem[]) => {
         setItems(data);
@@ -116,7 +117,7 @@ export function BacklogPage({
     setPrResult(null);
 
     try {
-      const res = await fetch('/api/runs', {
+      const res = await fetch(apiUrl('/api/runs'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ item_id: selectedId, dry_run: dryRun }),
@@ -129,7 +130,7 @@ export function BacklogPage({
       const data = await res.json();
       setRunId(data.run_id);
 
-      const es = new EventSource(`/api/runs/${data.run_id}/stream`);
+      const es = new EventSource(apiUrl(`/api/runs/${data.run_id}/stream`));
       eventSourceRef.current = es;
 
       es.onmessage = (msg) => {
@@ -161,7 +162,7 @@ export function BacklogPage({
 
   const handleApprove = async () => {
     if (!runId) return;
-    const res = await fetch(`/api/runs/${runId}/approve`, { method: 'POST' });
+    const res = await fetch(apiUrl(`/api/runs/${runId}/approve`), { method: 'POST' });
     const data = await res.json();
     if (!res.ok) {
       setErrorMsg(data.detail ?? 'Approve failed');
@@ -173,7 +174,7 @@ export function BacklogPage({
 
   const handleReject = async () => {
     if (!runId) return;
-    const res = await fetch(`/api/runs/${runId}/reject`, {
+    const res = await fetch(apiUrl(`/api/runs/${runId}/reject`), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

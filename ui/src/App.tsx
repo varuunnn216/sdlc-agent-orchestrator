@@ -1,5 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { apiUrl } from './api';
 import { Header } from './components/Header';
 import { Noise } from './components/reactbits/Noise';
 import type { DemoStatus, LlmStatus } from './types';
@@ -18,7 +19,7 @@ export function App() {
   const [llmStatus, setLlmStatus] = useState<LlmStatus | null>(null);
 
   const refreshDemoStatus = useCallback(() => {
-    fetch('/api/demo-status')
+    fetch(apiUrl('/api/demo-status'))
       .then((res) => (res.ok ? res.json() : null))
       .then((data: DemoStatus | null) => {
         if (data) setDemoStatus(data);
@@ -27,7 +28,7 @@ export function App() {
         // Ignore when demo-status endpoint is unavailable
       });
 
-    fetch('/api/llm/status')
+    fetch(apiUrl('/api/llm/status'))
       .then((res) => (res.ok ? res.json() : null))
       .then((data: LlmStatus | null) => {
         if (data) setLlmStatus(data);

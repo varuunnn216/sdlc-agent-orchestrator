@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { apiUrl } from '../api';
 import { ErrorCard } from '../components/ErrorCard';
 import { CallChip } from '../components/reactbits/CallChip';
 import { Counter } from '../components/reactbits/Counter';
@@ -114,7 +115,7 @@ export function FixBugPage({
   }, [runStatus, onStatusChange]);
 
   useEffect(() => {
-    fetch('/api/work-items')
+    fetch(apiUrl('/api/work-items'))
       .then((res) => res.json())
       .then((data: WorkItem[]) => {
         setItems(data);
@@ -228,7 +229,7 @@ export function FixBugPage({
     runStartMsRef.current = Date.now();
 
     try {
-      const res = await fetch('/api/runs', {
+      const res = await fetch(apiUrl('/api/runs'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ item_id: selectedItem.id, dry_run: dryRun }),
@@ -240,7 +241,7 @@ export function FixBugPage({
       onRunStarted?.();
       setRunId(data.run_id);
 
-      const es = new EventSource(`/api/runs/${data.run_id}/stream`);
+      const es = new EventSource(apiUrl(`/api/runs/${data.run_id}/stream`));
       eventSourceRef.current = es;
 
       es.onmessage = (msg) => {
@@ -286,7 +287,7 @@ export function FixBugPage({
     eventSourceRef.current?.close();
     if (runId) {
       try {
-        await fetch(`/api/runs/${runId}/cancel`, { method: 'POST' });
+        await fetch(apiUrl(`/api/runs/${runId}/cancel`), { method: 'POST' });
       } catch {
         // Ignore network errors on cancel cleanup
       }
@@ -297,7 +298,7 @@ export function FixBugPage({
 
   const handleApprove = async () => {
     if (!runId) return;
-    const res = await fetch(`/api/runs/${runId}/approve`, { method: 'POST' });
+    const res = await fetch(apiUrl(`/api/runs/${runId}/approve`), { method: 'POST' });
     const data = await res.json();
     if (!res.ok) {
       setErrorMsg(data.detail ?? 'Approve failed');
@@ -310,7 +311,7 @@ export function FixBugPage({
   const handleReject = async () => {
     if (!runId) return;
     const reason = rejectReason.trim() || 'Rejected by reviewer';
-    const res = await fetch(`/api/runs/${runId}/reject`, {
+    const res = await fetch(apiUrl(`/api/runs/${runId}/reject`), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ reason }),

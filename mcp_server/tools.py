@@ -121,10 +121,16 @@ def run_tests(config: MCPConfig | None = None, timeout: int = 60) -> dict[str, A
     if not cfg.workdir.exists():
         raise FileNotFoundError(f"Working copy does not exist: {cfg.workdir}")
 
-    env = os.environ.copy()
     local_bin = str(Path.home() / ".local" / "bin")
-    if local_bin not in env.get("PATH", ""):
-        env["PATH"] = f"{local_bin}:{env.get('PATH', '')}"
+    base_path = os.environ.get("PATH", "/usr/local/bin:/usr/bin:/bin")
+    clean_path = f"{local_bin}:{base_path}" if local_bin not in base_path else base_path
+    env = {
+        "PATH": clean_path,
+        "HOME": os.environ.get("HOME", "/tmp"),
+        "TMPDIR": os.environ.get("TMPDIR", "/tmp"),
+        "NODE_ENV": "test",
+        "CI": "true",
+    }
 
     result = subprocess.run(
         ["npm", "test"],

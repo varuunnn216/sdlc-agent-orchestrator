@@ -12,8 +12,8 @@ dist/
 .vite/
 
 # Environment & Secrets
-.env
-.env.local
+.env*
+!.env.example
 
 # Working copies & logs
 .work/
