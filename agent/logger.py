@@ -25,6 +25,8 @@ class StepLog:
     tokens_in: int = 0
     tokens_out: int = 0
     duration_ms: int = 0
+    provider: str = ""
+    model: str = ""
     timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
 
@@ -54,6 +56,8 @@ class RunLogger:
         tokens_in: int = 0,
         tokens_out: int = 0,
         duration_ms: int = 0,
+        provider: str = "",
+        model: str = "",
     ) -> StepLog:
         """Append a step, emit live event if configured, and flush JSON log."""
         step = StepLog(
@@ -65,6 +69,8 @@ class RunLogger:
             tokens_in=tokens_in,
             tokens_out=tokens_out,
             duration_ms=duration_ms,
+            provider=provider,
+            model=model,
         )
         self.steps.append(step)
         if self.on_event is not None:

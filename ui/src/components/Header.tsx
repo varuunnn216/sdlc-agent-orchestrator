@@ -1,12 +1,13 @@
 import { Link, NavLink, useLocation } from 'react-router-dom';
-import type { DemoStatus } from '../types';
+import type { DemoStatus, LlmStatus } from '../types';
 import './Header.css';
 
 interface HeaderProps {
   demoStatus: DemoStatus | null;
+  llmStatus?: LlmStatus | null;
 }
 
-export function Header({ demoStatus }: HeaderProps) {
+export function Header({ demoStatus, llmStatus }: HeaderProps) {
   const location = useLocation();
   const isHome = location.pathname === '/';
 
@@ -26,6 +27,14 @@ export function Header({ demoStatus }: HeaderProps) {
               title="Public demo rate limit per IP per day"
             >
               Demo mode &middot; {demoStatus.ip_remaining}/{demoStatus.ip_limit} left
+              {llmStatus && (
+                <>
+                  {' · '}
+                  <span data-testid="ai-capacity-indicator">
+                    AI capacity: {llmStatus.capacity === 'ok' ? 'OK' : 'limited'}
+                  </span>
+                </>
+              )}
             </span>
           )}
         </div>

@@ -16,6 +16,7 @@ from typing import Any
 import anthropic
 from dotenv import load_dotenv
 
+from agent.llm import LLMError, llm_call
 from agent.logger import DEFAULT_LOG_DIR, RunLogger
 from mcp_server.tools import (
     DEFAULT_WORKDIR,
@@ -103,6 +104,9 @@ class RunState:
     pr_result: dict[str, Any] | None = None
     reject_reason: str | None = None
     error: str | None = None
+    provider: str = ""
+    model: str = ""
+    error_detail: dict[str, Any] | None = None
 
 
 def _list_src_files(workdir: Path) -> list[str]:
@@ -335,6 +339,183 @@ def _run_gemini(
     return state
 
 
+def _run_multi_provider(
+    item: dict[str, Any],
+    src_files: list[str],
+    cfg: AgentConfig,
+    mcp_cfg: MCPConfig,
+    logger: RunLogger,
+    state: RunState,
+    on_event: Callable[[dict[str, Any]], None] | None,
+) -> RunState:
+    """Run plan -> implement -> verify using the multi-provider llm_call() layer."""
+    total_tokens = 0
+    tool_calls = 0
+    test_failures = 0
+    current_provider: str | None = cfg.provider or None
+
+    def emit_switch(from_p: str, to_p: str, reason: str) -> None:
+        if on_event is not None:
+            on_event(
+                {
+                    "type": "provider_switch",
+                    "run_id": state.run_id,
+                    "from": from_p,
+                    "to": to_p,
+                    "reason": reason,
+                }
+            )
+
+    try:
+        # Phase 1: Plan first
+        t0 = time.monotonic()
+        plan_prompt = (
+            f"Ticket {item['id']} ({item['type']} - {item['difficulty']}):\n"
+            f"{json.dumps(item, indent=2)}\n\n"
+            "Working copy files:\n" + "\n".join(f"- {f}" for f in src_files) + "\n\n"
+            "Write a concise 3-5 bullet implementation plan. Do not call tools yet."
+        )
+        plan_resp = llm_call(
+            messages=[{"role": "user", "content": plan_prompt}],
+            system="You are a senior React/TypeScript engineer. Produce a brief, actionable plan.",
+            max_tokens=600,
+            preferred_provider=current_provider,
+            on_provider_switch=emit_switch,
+        )
+        current_provider = plan_resp.provider
+        state.provider = plan_resp.provider
+        state.model = plan_resp.model
+        total_tokens += plan_resp.tokens_in + plan_resp.tokens_out
+        state.plan = plan_resp.text.strip()
+
+        logger.record(
+            phase="plan",
+            tool="plan",
+            args={"item_id": item["id"]},
+            result=state.plan,
+            tokens_in=plan_resp.tokens_in,
+            tokens_out=plan_resp.tokens_out,
+            duration_ms=int((time.monotonic() - t0) * 1000),
+            provider=plan_resp.provider,
+            model=plan_resp.model,
+        )
+        if on_event is not None:
+            on_event({"type": "plan", "run_id": state.run_id, "plan": state.plan})
+
+        # Phase 2 & 3: Implement & Verify
+        system_prompt = (
+            "You are an autonomous SDLC agent editing a React + TypeScript + Vite app.\n"
+            "Rules:\n"
+            "1. Only read/write files inside the working copy using the provided tools.\n"
+            "2. Implement the fix or feature cleanly without breaking existing tests.\n"
+            "3. Run `run_tests` after editing to verify all tests pass.\n"
+            "4. Stop as soon as `run_tests` passes."
+        )
+        messages: list[dict[str, Any]] = [
+            {
+                "role": "user",
+                "content": (
+                    f"Implement the following plan for {item['id']}:\n{state.plan}\n\n"
+                    f"Ticket details:\n{json.dumps(item, indent=2)}\n\n"
+                    "Available files:\n" + "\n".join(f"- {f}" for f in src_files)
+                ),
+            }
+        ]
+
+        while True:
+            if total_tokens >= cfg.max_tokens_per_run:
+                state.status = "budget_exceeded"
+                state.error = f"Token budget exceeded ({total_tokens} >= {cfg.max_tokens_per_run})"
+                break
+            if tool_calls >= cfg.max_tool_calls:
+                state.status = "budget_exceeded"
+                state.error = f"Tool call limit reached ({tool_calls} >= {cfg.max_tool_calls})"
+                break
+
+            resp = llm_call(
+                messages=messages,
+                system=system_prompt,
+                tools=ANTHROPIC_TOOLS,
+                max_tokens=4096,
+                preferred_provider=current_provider,
+                on_provider_switch=emit_switch,
+            )
+            current_provider = resp.provider
+            state.provider = resp.provider
+            state.model = resp.model
+            total_tokens += resp.tokens_in + resp.tokens_out
+
+            if not resp.tool_calls:
+                break
+
+            messages.append(
+                {
+                    "role": "assistant",
+                    "content": resp.text,
+                    "tool_calls": [
+                        {"id": tc.id, "name": tc.name, "args": tc.args}
+                        for tc in resp.tool_calls
+                    ],
+                }
+            )
+
+            for idx, tc in enumerate(resp.tool_calls):
+                if tool_calls >= cfg.max_tool_calls:
+                    state.status = "budget_exceeded"
+                    state.error = f"Tool call limit reached ({cfg.max_tool_calls})"
+                    break
+
+                tool_calls += 1
+                t_tool = time.monotonic()
+                try:
+                    output = _execute_tool(tc.name, tc.args, mcp_cfg)
+                except (ValueError, FileNotFoundError, subprocess.SubprocessError, OSError) as exc:
+                    output = {"error": str(exc)}
+
+                phase = "verify" if tc.name == "run_tests" else "implement"
+                if tc.name == "run_tests" and isinstance(output, dict):
+                    state.tests_passed = bool(output.get("passed"))
+                    if not state.tests_passed:
+                        test_failures += 1
+
+                logger.record(
+                    phase=phase,
+                    tool=tc.name,
+                    args=tc.args,
+                    result=output,
+                    tokens_in=resp.tokens_in if idx == 0 else 0,
+                    tokens_out=resp.tokens_out if idx == 0 else 0,
+                    duration_ms=int((time.monotonic() - t_tool) * 1000),
+                    provider=resp.provider,
+                    model=resp.model,
+                )
+                messages.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": tc.id,
+                        "name": tc.name,
+                        "content": output,
+                    }
+                )
+
+            if state.status == "budget_exceeded":
+                break
+
+            if test_failures > cfg.max_test_retries:
+                state.status = "failed"
+                state.error = f"Tests failed after {cfg.max_test_retries} retries."
+                break
+    except LLMError as exc:
+        state.status = "failed"
+        state.error = exc.message
+        state.provider = exc.provider or state.provider
+        state.error_detail = exc.to_detail()
+
+    state.tool_calls = tool_calls
+    state.total_tokens = total_tokens
+    return state
+
+
 def run_agent(
     item_id: str,
     config: AgentConfig | None = None,
@@ -348,13 +529,12 @@ def run_agent(
     logger = RunLogger(run_id=run_id, item_id=item_id, log_dir=cfg.log_dir, on_event=on_event)
     start_time = time.monotonic()
 
-    provider = _resolve_provider(cfg, client)
     item = get_work_item(item_id, config=mcp_cfg)
     src_files = _list_src_files(cfg.workdir)
     state = RunState(run_id=run_id, item_id=item_id, status="running")
 
-    if provider == "gemini":
-        state = _run_gemini(item, src_files, cfg, mcp_cfg, logger, state, on_event)
+    if client is None and cfg.provider != "anthropic":
+        state = _run_multi_provider(item, src_files, cfg, mcp_cfg, logger, state, on_event)
         state.diff = _get_git_diff(cfg.workdir)
         state.duration_s = round(time.monotonic() - start_time, 2)
         if state.status not in ("budget_exceeded", "failed"):
@@ -365,11 +545,14 @@ def run_agent(
                 state.error = state.error or "Tests did not pass."
         logger.set_metadata(
             status=state.status,
+            provider=state.provider,
+            model=state.model,
             tool_calls=state.tool_calls,
             total_tokens=state.total_tokens,
             duration_s=state.duration_s,
             tests_passed=state.tests_passed,
             error=state.error,
+            error_detail=state.error_detail,
         )
         if on_event is not None:
             on_event(
@@ -380,6 +563,7 @@ def run_agent(
                     "diff": state.diff,
                     "tests_passed": state.tests_passed,
                     "error": state.error,
+                    "error_detail": state.error_detail,
                 }
             )
         return state

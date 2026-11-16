@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { CountUp } from '../components/reactbits/CountUp';
 import { FadeContent } from '../components/reactbits/FadeContent';
@@ -9,36 +9,72 @@ import { SplitText } from '../components/reactbits/SplitText';
 import { SpotlightCard } from '../components/reactbits/SpotlightCard';
 import './LandingPage.css';
 
-const PREVIEW_STEPS = [
+interface PreviewStep {
+  key: string;
+  label: string;
+  badge: string;
+  renderDetail: () => ReactNode;
+}
+
+const PREVIEW_STEPS: PreviewStep[] = [
   {
     key: 'plan',
     label: 'Plan',
-    detail: 'Inspect Cart.tsx & cart.test.ts; locate subtotal calculation.',
     badge: '01',
+    renderDetail: () => (
+      <>
+        Inspected <code className="preview-inline-code">Cart.tsx</code> and{' '}
+        <code className="preview-inline-code">cart.test.ts</code> to locate the
+        subtotal calculation.
+      </>
+    ),
   },
   {
     key: 'edit',
     label: 'edit file',
-    detail: 'write_file("src/utils/cart.ts") -> price * item.quantity',
     badge: '02',
+    renderDetail: () => (
+      <>
+        <code className="preview-inline-code">write_file()</code> updated{' '}
+        <code className="preview-inline-code">src/utils/cart.ts</code> to
+        multiply <code className="preview-inline-code">item.price</code> by{' '}
+        <code className="preview-inline-code">item.quantity</code>.
+      </>
+    ),
   },
   {
     key: 'test',
     label: 'run tests',
-    detail: 'run_tests() -> Vitest: 12 passed, 0 failed (410ms)',
     badge: '03',
+    renderDetail: () => (
+      <>
+        <code className="preview-inline-code">run_tests()</code> returned
+        Vitest: 12 passed, 0 failed in 0.41 s.
+      </>
+    ),
   },
   {
     key: 'diff',
     label: 'diff',
-    detail: '- return sum + item.price;\n+ return sum + item.price * item.quantity;',
     badge: '04',
+    renderDetail: () => (
+      <>
+        Generated diff replacing{' '}
+        <code className="preview-inline-code">sum + item.price</code> with{' '}
+        <code className="preview-inline-code">
+          sum + item.price * item.quantity
+        </code>
+        .
+      </>
+    ),
   },
   {
     key: 'approve',
     label: 'Approve',
-    detail: 'Awaiting human approval -> Slide to Approve (dry-run PR)',
     badge: '05',
+    renderDetail: () => (
+      <>Awaiting human approval before creating a dry-run PR.</>
+    ),
   },
 ];
 
@@ -171,9 +207,6 @@ export function LandingPage() {
               {secondaryRipple.rippleLayer}
             </button>
           </div>
-          <p className="landing-disclaimer">
-            Demo uses a mock shop app. No company data.
-          </p>
         </FadeContent>
       </section>
 
@@ -183,7 +216,6 @@ export function LandingPage() {
           <SpotlightCard className="preview-strip">
             <div className="preview-strip-header">
               <span className="preview-strip-label">Simulated Agent Run</span>
-              <span className="preview-strip-hint">Pure UI preview · no API call</span>
             </div>
             <div className="preview-steps-row" role="list">
               {PREVIEW_STEPS.map((step, idx) => {
@@ -203,9 +235,9 @@ export function LandingPage() {
                 );
               })}
             </div>
-            <pre className="preview-terminal" aria-live="off">
-              <code>{PREVIEW_STEPS[activePreviewIdx].detail}</code>
-            </pre>
+            <p className="preview-result" aria-live="off">
+              {PREVIEW_STEPS[activePreviewIdx].renderDetail()}
+            </p>
           </SpotlightCard>
         </section>
       </FadeContent>

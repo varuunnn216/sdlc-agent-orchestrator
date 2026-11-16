@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { ErrorCard } from '../components/ErrorCard';
 import { CallChip } from '../components/reactbits/CallChip';
 import { Counter } from '../components/reactbits/Counter';
 import { FadeContent } from '../components/reactbits/FadeContent';
@@ -13,7 +14,7 @@ import { StarBorder } from '../components/reactbits/StarBorder';
 import { StatusMark } from '../components/reactbits/StatusMark';
 import { Stepper, type StepperStep } from '../components/reactbits/Stepper';
 import { ThoughtLine } from '../components/reactbits/ThoughtLine';
-import type { DemoStatus, PrResult, StepEvent, WorkItem } from '../types';
+import type { DemoStatus, ErrorDetail, PrResult, StepEvent, WorkItem } from '../types';
 import './FixBugPage.css';
 
 const STEPS: StepperStep[] = [
@@ -97,6 +98,8 @@ export function FixBugPage({
   const [diff, setDiff] = useState<string>('');
   const [testsPassed, setTestsPassed] = useState<boolean | null>(null);
   const [errorMsg, setErrorMsg] = useState<string>('');
+  const [errorDetail, setErrorDetail] = useState<ErrorDetail | null>(null);
+  const [providerNote, setProviderNote] = useState<string>('');
   const [rejectReason, setRejectReason] = useState<string>('');
   const [submittedRejectReason, setSubmittedRejectReason] = useState<string>('');
   const [prResult, setPrResult] = useState<PrResult | null>(null);
@@ -217,6 +220,8 @@ export function FixBugPage({
     setDiff('');
     setTestsPassed(null);
     setErrorMsg('');
+    setErrorDetail(null);
+    setProviderNote('');
     setPrResult(null);
     setSubmittedRejectReason('');
     setElapsedSec(0);
@@ -242,6 +247,8 @@ export function FixBugPage({
         const ev = JSON.parse(msg.data);
         if (ev.type === 'plan') {
           setPlan(ev.plan ?? '');
+        } else if (ev.type === 'provider_switch') {
+          setProviderNote(`Switched AI provider: ${ev.from} -> ${ev.to} (${ev.reason})`);
         } else if (ev.type === 'step') {
           setSteps((prev) => [...prev, ev.step]);
         } else if (ev.type === 'done') {
@@ -256,6 +263,8 @@ export function FixBugPage({
             setTestsPassed(ev.tests_passed);
           }
           if (ev.error) setErrorMsg(ev.error);
+          if (ev.error_detail) setErrorDetail(ev.error_detail);
+          onRunStarted?.();
           if (ev.status === 'awaiting_approval') {
             setCurrentStep(4);
             setMaxReachedStep(4);
@@ -326,6 +335,8 @@ export function FixBugPage({
     setDiff('');
     setTestsPassed(null);
     setErrorMsg('');
+    setErrorDetail(null);
+    setProviderNote('');
     setPrResult(null);
     setSubmittedRejectReason('');
     setCurrentStep(1);
@@ -519,7 +530,7 @@ export function FixBugPage({
               </div>
             )}
 
-            {errorMsg && <div className="error-banner">{errorMsg}</div>}
+            <ErrorCard message={errorMsg} detail={errorDetail} />
 
             <div className="fix-actions-row">
               <button
@@ -579,9 +590,15 @@ export function FixBugPage({
               </div>
             </div>
 
+            {providerNote && (
+              <div className="fix-metric-pill" data-testid="provider-switch-note">
+                {providerNote}
+              </div>
+            )}
+
             {plan && <ThoughtLine label="Plan" content={plan} />}
 
-            {errorMsg && <div className="error-banner">{errorMsg}</div>}
+            <ErrorCard message={errorMsg} detail={errorDetail} />
 
             <div className="trace-scroll">
               {steps.length === 0 ? (
@@ -697,7 +714,7 @@ export function FixBugPage({
                 )}
               </div>
 
-              {errorMsg && <div className="error-banner">{errorMsg}</div>}
+              <ErrorCard message={errorMsg} detail={errorDetail} />
 
               {runStatus === 'approved' && (
                 <div className="pr-banner" data-testid="fix-approved-banner">

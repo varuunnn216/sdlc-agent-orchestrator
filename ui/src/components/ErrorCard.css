@@ -1,0 +1,62 @@
+.error-card {
+  margin-top: 12px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(239, 68, 68, 0.45);
+  background: rgba(239, 68, 68, 0.08);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: var(--text-body-size);
+  line-height: var(--text-body-line);
+}
+
+.error-card-message {
+  margin: 0;
+  font-weight: 500;
+}
+
+.error-card-details {
+  margin-top: 10px;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.error-card-details summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.error-card-meta {
+  margin: 8px 0 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.error-card-meta div {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 10px;
+}
+
+.error-card-meta dt {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--subtle);
+}
+
+.error-card-meta dd {
+  margin: 2px 0 0;
+  font-weight: 600;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 640px) {
+  .error-card-meta {
+    grid-template-columns: 1fr;
+  }
+}

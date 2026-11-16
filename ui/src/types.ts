@@ -20,6 +20,8 @@ export interface StepEvent {
   tokens_in: number;
   tokens_out: number;
   duration_ms: number;
+  provider?: string;
+  model?: string;
 }
 
 export interface PrResult {
@@ -36,4 +38,24 @@ export interface DemoStatus {
   global_remaining: number;
   global_limit: number;
   real_pr_enabled: boolean;
+}
+
+export interface LlmProviderStatus {
+  configured: boolean;
+  model: string;
+  cooling_down_until: string | null;
+  exhausted_today: boolean;
+  requests_today: number;
+}
+
+export interface LlmStatus {
+  capacity: 'ok' | 'limited';
+  providers: Record<string, LlmProviderStatus>;
+}
+
+export interface ErrorDetail {
+  kind: string;
+  provider?: string;
+  attempts?: number;
+  retry_after_s?: number | null;
 }

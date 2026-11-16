@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 import sys
 import threading
@@ -23,6 +24,7 @@ sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
 from apply_case import apply_case
 
+from agent.llm import get_llm_status, redact_secrets
 from agent.logger import DEFAULT_LOG_DIR, RunLogger
 from agent.orchestrator import (
     AgentConfig,
@@ -110,6 +112,12 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@app.get("/api/llm/status")
+def llm_status() -> dict[str, Any]:
+    """Return per-provider configuration, cooldown, and daily request counts (no keys)."""
+    return get_llm_status()
+
+
 @app.get("/api/demo-status")
 def demo_status(request: Request) -> dict[str, Any]:
     """Return remaining public demo run quota and PR guardrail status."""
@@ -176,20 +184,42 @@ def start_run(request: Request, req: StartRunRequest) -> dict[str, Any]:
     )
     RUNS[run_id] = record
 
+    def _refund_demo_run() -> None:
+        with DEMO_USAGE_LOCK:
+            if DEMO_IP_COUNTS.get((day, ip), 0) > 0:
+                DEMO_IP_COUNTS[(day, ip)] -= 1
+            if DEMO_GLOBAL_COUNTS.get(day, 0) > 0:
+                DEMO_GLOBAL_COUNTS[day] -= 1
+
     def _worker() -> None:
         try:
             final_state = run_agent(req.item_id, config=cfg, on_event=record.publish)
             final_state.run_id = run_id
             record.state = final_state
+            if (
+                final_state.error_detail
+                and final_state.error_detail.get("kind") == "quota_exhausted"
+            ):
+                _refund_demo_run()
         except Exception as exc:  # noqa: BLE001
+            logging.getLogger("api.main").error(
+                "Run %s failed unexpectedly: %s", run_id, redact_secrets(str(exc))
+            )
             record.state.status = "failed"
-            record.state.error = str(exc)
+            record.state.error = "Agent run failed due to an internal server error."
+            record.state.error_detail = {
+                "kind": "internal_error",
+                "provider": record.state.provider,
+                "attempts": 0,
+                "retry_after_s": None,
+            }
             record.publish(
                 {
                     "type": "done",
                     "run_id": run_id,
                     "status": "failed",
-                    "error": str(exc),
+                    "error": record.state.error,
+                    "error_detail": record.state.error_detail,
                     "diff": "",
                     "tests_passed": False,
                 }

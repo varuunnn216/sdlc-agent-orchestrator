@@ -2,7 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { Header } from './components/Header';
 import { Noise } from './components/reactbits/Noise';
-import type { DemoStatus } from './types';
+import type { DemoStatus, LlmStatus } from './types';
 
 const FloatingLines = lazy(
   () => import('./components/reactbits/FloatingLines')
@@ -15,6 +15,7 @@ export function App() {
   const location = useLocation();
   const [bgStatus, setBgStatus] = useState<string>('idle');
   const [demoStatus, setDemoStatus] = useState<DemoStatus | null>(null);
+  const [llmStatus, setLlmStatus] = useState<LlmStatus | null>(null);
 
   const refreshDemoStatus = useCallback(() => {
     fetch('/api/demo-status')
@@ -24,6 +25,15 @@ export function App() {
       })
       .catch(() => {
         // Ignore when demo-status endpoint is unavailable
+      });
+
+    fetch('/api/llm/status')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: LlmStatus | null) => {
+        if (data) setLlmStatus(data);
+      })
+      .catch(() => {
+        // Ignore when llm-status endpoint is unavailable
       });
   }, []);
 
@@ -43,7 +53,7 @@ export function App() {
         <FloatingLines status={bgStatus} />
       </Suspense>
       <Noise />
-      <Header demoStatus={demoStatus} />
+      <Header demoStatus={demoStatus} llmStatus={llmStatus} />
       <div key={location.pathname} className="page-transition">
         <Suspense fallback={<div className="route-loading" aria-live="polite" />}>
           <Routes>

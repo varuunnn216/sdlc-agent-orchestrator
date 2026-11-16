@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { ErrorCard } from '../components/ErrorCard';
 import { AnimatedList } from '../components/reactbits/AnimatedList';
 import { CallChip } from '../components/reactbits/CallChip';
 import { Counter } from '../components/reactbits/Counter';
@@ -15,7 +16,7 @@ import { SquishSwitch } from '../components/reactbits/SquishSwitch';
 import { StarBorder } from '../components/reactbits/StarBorder';
 import { StatusMark } from '../components/reactbits/StatusMark';
 import { ThoughtLine } from '../components/reactbits/ThoughtLine';
-import type { PrResult, StepEvent, WorkItem } from '../types';
+import type { ErrorDetail, PrResult, StepEvent, WorkItem } from '../types';
 
 const PIPELINE_STEPS = [
   'Plan',
@@ -45,6 +46,8 @@ export function BacklogPage({
   const [steps, setSteps] = useState<StepEvent[]>([]);
   const [diff, setDiff] = useState<string>('');
   const [errorMsg, setErrorMsg] = useState<string>('');
+  const [errorDetail, setErrorDetail] = useState<ErrorDetail | null>(null);
+  const [providerNote, setProviderNote] = useState<string>('');
   const [rejectReason, setRejectReason] = useState<string>('');
   const [prResult, setPrResult] = useState<PrResult | null>(null);
 
@@ -108,6 +111,8 @@ export function BacklogPage({
     setSteps([]);
     setDiff('');
     setErrorMsg('');
+    setErrorDetail(null);
+    setProviderNote('');
     setPrResult(null);
 
     try {
@@ -131,12 +136,16 @@ export function BacklogPage({
         const ev = JSON.parse(msg.data);
         if (ev.type === 'plan') {
           setPlan(ev.plan ?? '');
+        } else if (ev.type === 'provider_switch') {
+          setProviderNote(`Switched AI provider: ${ev.from} -> ${ev.to} (${ev.reason})`);
         } else if (ev.type === 'step') {
           setSteps((prev) => [...prev, ev.step]);
         } else if (ev.type === 'done') {
           setRunStatus(ev.status);
           setDiff(ev.diff ?? '');
           if (ev.error) setErrorMsg(ev.error);
+          if (ev.error_detail) setErrorDetail(ev.error_detail);
+          onRunStarted?.();
           es.close();
         }
       };
@@ -330,7 +339,7 @@ export function BacklogPage({
                     </StarBorder>
                   </div>
                 </div>
-                {errorMsg && <div className="error-banner">{errorMsg}</div>}
+                <ErrorCard message={errorMsg} detail={errorDetail} />
               </SpotlightCard>
             </FadeContent>
           )}
@@ -341,6 +350,11 @@ export function BacklogPage({
                 <h2>Live Step Trace (SSE)</h2>
                 {runStatus === 'running' && <LatticeLoader />}
               </div>
+              {providerNote && (
+                <div className="fix-metric-pill" data-testid="provider-switch-note">
+                  {providerNote}
+                </div>
+              )}
               {plan && <ThoughtLine label="Plan" content={plan} />}
               <div className="trace-scroll">
                 {steps.length === 0 ? (
