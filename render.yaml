@@ -12,18 +12,10 @@ services:
       - key: ALLOW_REAL_PR
         value: "false"
       - key: LLM_PROVIDER_ORDER
-        value: groq,cerebras,gemini
-      - key: GROQ_MODEL
-        value: openai/gpt-oss-120b
-      - key: CEREBRAS_MODEL
-        value: gpt-oss-120b
+        value: gemini
       - key: GEMINI_MODEL
         value: gemini-3.6-flash
       - key: ALLOWED_ORIGINS
-        sync: false
-      - key: GROQ_API_KEY
-        sync: false
-      - key: CEREBRAS_API_KEY
         sync: false
       - key: GEMINI_API_KEY
         sync: false
