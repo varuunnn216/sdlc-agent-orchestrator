@@ -132,7 +132,7 @@ def test_long_retry_429_triggers_cooldown_without_sleeping() -> None:
             calls.append("groq")
             return httpx.Response(
                 429,
-                headers={"Retry-After": "45"},
+                headers={"Retry-After": "700"},
                 json={"error": {"message": "Too many requests"}},
             )
         calls.append("cerebras")
@@ -284,3 +284,108 @@ def test_quota_exhausted_does_not_consume_demo_quota_and_redacts_secrets(
     llm_st = client.get("/api/llm/status").json()
     assert "gsk_" not in json.dumps(llm_st)
     assert redact_secrets("Bearer gsk_abc1234567890") == "[REDACTED]"
+
+
+def test_429_per_minute_resource_exhausted_sleeps_and_retries_same_provider(monkeypatch) -> None:
+    from agent.llm import _parse_retry_after
+
+    per_minute_body = json.dumps(
+        {
+            "error": {
+                "code": 429,
+                "message": (
+                    "Generate content requests per minute limit exceeded on Free Tier. "
+                    "Please retry in 55.4594s."
+                ),
+                "status": "RESOURCE_EXHAUSTED",
+                "details": [
+                    {
+                        "violations": [
+                            {
+                                "quotaId": "GenerateRequestsPerMinutePerProjectPerModel-FreeTier",
+                                "quotaValue": "5",
+                            }
+                        ]
+                    },
+                    {"retryDelay": "55s"},
+                ],
+            }
+        }
+    )
+    delay, is_daily = _parse_retry_after(None, per_minute_body)
+    assert is_daily is False
+    assert delay == pytest.approx(55.4594)
+
+    monkeypatch.setenv("LLM_PROVIDER_ORDER", "groq,gemini")
+    sleeps: list[float] = []
+    attempt_num = 0
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        nonlocal attempt_num
+        attempt_num += 1
+        if attempt_num == 1:
+            return httpx.Response(429, text=per_minute_body)
+        return httpx.Response(200, json=_openai_tool_json("read_file", "src/App.tsx"))
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as mock_http:
+        resp = llm_call(
+            messages=[{"role": "user", "content": "hi"}],
+            http_client=mock_http,
+            sleep_fn=sleeps.append,
+        )
+
+    assert attempt_num == 2
+    assert resp.provider == "groq"
+    assert len(sleeps) == 1
+    assert 56.0 <= sleeps[0] <= 58.0
+
+
+def test_429_daily_quota_fails_over_without_sleeping() -> None:
+    from agent.llm import _parse_retry_after
+
+    daily_body = json.dumps(
+        {
+            "error": {
+                "code": 429,
+                "message": "Generate content requests per day limit exceeded on Free Tier. Please retry in 8m34s.",
+                "status": "RESOURCE_EXHAUSTED",
+                "details": [
+                    {"quotaId": "GenerateRequestsPerDayPerProjectPerModel-FreeTier"},
+                    {"retryDelay": "514s"},
+                ],
+            }
+        }
+    )
+    delay, is_daily = _parse_retry_after(None, daily_body)
+    assert is_daily is True
+    assert delay == pytest.approx(514.0)
+
+
+def test_token_budget_and_context_compaction() -> None:
+    from agent.orchestrator import (
+        AgentConfig,
+        _prune_stale_tool_results,
+        _truncate_file_output,
+        resolve_token_budget,
+    )
+
+    assert resolve_token_budget(AgentConfig(), "gemini", "gemini-3.6-flash") == 150_000
+    assert resolve_token_budget(AgentConfig(), "groq", "llama-3.1-8b-instant") == 50_000
+
+    long_file = "\n".join(f"line {i}" for i in range(400))
+    truncated = _truncate_file_output(long_file, max_lines=300)
+    assert "100 lines omitted from 400-line file" in truncated
+    assert "line 0" in truncated
+    assert "line 399" in truncated
+
+    msgs = [
+        {"role": "tool", "name": "read_file", "content": "a\nb\nc"},
+        {"role": "tool", "name": "run_tests", "content": {"passed": False, "output": "big"}},
+        {"role": "tool", "name": "read_file", "content": "recent 1"},
+        {"role": "tool", "name": "run_tests", "content": {"passed": True, "output": "recent 2"}},
+    ]
+    _prune_stale_tool_results(msgs, keep_recent=2)
+    assert "stale read_file result omitted" in msgs[0]["content"]
+    assert msgs[1]["content"]["note"] == "[stale test output omitted]"
+    assert msgs[2]["content"] == "recent 1"
+    assert msgs[3]["content"]["output"] == "recent 2"

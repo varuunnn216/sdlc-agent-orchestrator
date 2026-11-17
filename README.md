@@ -75,6 +75,21 @@ cd sample-app && npm test
 .venv/bin/python evals/run.py --case BUG-6
 ```
 
+## Eval Results
+
+Measured from [`evals/results/latest.md`](evals/results/latest.md) (`groq:openai/gpt-oss-120b`, fallback `gemini:gemini-3.6-flash`; stopped in Pass 1 after 2 cases due to free-tier quota limits):
+
+| Metric | Measured Value |
+| :--- | :--- |
+| Cases attempted | `2` (Pass 1: `STORY-1`, `STORY-2`) |
+| Non-infra success rate | `0/1` (`0.0%`, `1` infra stop) |
+| Average tool calls / case | `13.00` |
+| Average tokens / case | `34,750` (`0` thinking tokens) |
+| Average time / case | `187.09s` |
+
+- `STORY-1`: `FAIL` (`budget_exceeded`: `180s` run-time limit after `13` tool calls / `34,750` tokens due to `8,000 TPM` waits).
+- `STORY-2`: `INFRA` (`8` tool calls / `18,307` tokens; failed over to Gemini, which hit `20 RPD` daily quota).
+
 ## Deployment Steps (Docker Compose)
 
 1. Ensure `.env` exists with `ANTHROPIC_API_KEY` and `GITHUB_TOKEN` (and `GITHUB_REPO=owner/repo`).

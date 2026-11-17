@@ -24,6 +24,7 @@ class StepLog:
     result: Any
     tokens_in: int = 0
     tokens_out: int = 0
+    thinking_tokens: int = 0
     duration_ms: int = 0
     provider: str = ""
     model: str = ""
@@ -55,6 +56,7 @@ class RunLogger:
         result: Any,
         tokens_in: int = 0,
         tokens_out: int = 0,
+        thinking_tokens: int = 0,
         duration_ms: int = 0,
         provider: str = "",
         model: str = "",
@@ -68,6 +70,7 @@ class RunLogger:
             result=result,
             tokens_in=tokens_in,
             tokens_out=tokens_out,
+            thinking_tokens=thinking_tokens,
             duration_ms=duration_ms,
             provider=provider,
             model=model,
