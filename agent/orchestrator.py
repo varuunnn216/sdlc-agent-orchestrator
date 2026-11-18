@@ -81,9 +81,13 @@ class AgentConfig:
         default_factory=lambda: os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
     )
     max_tool_calls: int = 15
-    max_tokens_per_run: int = 50_000
+    max_tokens_per_run: int | None = None
     max_test_retries: int = 2
     max_run_seconds: int = 180
+    context_compaction: bool = field(
+        default_factory=lambda: os.getenv("CONTEXT_COMPACTION", "true").strip().lower()
+        not in {"0", "false", "no"}
+    )
     workdir: Path = DEFAULT_WORKDIR
     log_dir: Path = DEFAULT_LOG_DIR
     dry_run: bool = False
@@ -101,7 +105,10 @@ class RunState:
     tests_passed: bool = False
     tool_calls: int = 0
     total_tokens: int = 0
+    thinking_tokens: int = 0
     duration_s: float = 0.0
+    active_s: float = 0.0
+    wait_s: float = 0.0
     pr_result: dict[str, Any] | None = None
     reject_reason: str | None = None
     error: str | None = None
@@ -264,9 +271,10 @@ def _run_gemini(
     ]
 
     while True:
-        if total_tokens >= cfg.max_tokens_per_run:
+        token_budget = resolve_token_budget(cfg, "anthropic", cfg.model)
+        if total_tokens >= token_budget:
             state.status = "budget_exceeded"
-            state.error = f"Token budget exceeded ({total_tokens} >= {cfg.max_tokens_per_run})"
+            state.error = f"Token budget exceeded ({total_tokens} >= {token_budget})"
             break
         if tool_calls >= cfg.max_tool_calls:
             state.status = "budget_exceeded"
@@ -341,6 +349,71 @@ def _run_gemini(
     return state
 
 
+_THINKING_MODEL_PREFIXES = (
+    "gemini-3",
+    "gemini-2.5",
+    "openai/gpt-oss",
+    "gpt-oss",
+    "qwen/qwen3",
+    "qwen3",
+    "o1",
+    "o3",
+)
+
+
+def is_thinking_model(model: str) -> bool:
+    """Return True if the model emits reasoning/thinking tokens."""
+    lower = model.strip().lower()
+    return any(p in lower for p in _THINKING_MODEL_PREFIXES)
+
+
+def resolve_token_budget(cfg: AgentConfig, provider: str = "", model: str = "") -> int:
+    """Resolve max_tokens_per_run from explicit config, env, or model defaults."""
+    if cfg.max_tokens_per_run is not None:
+        return cfg.max_tokens_per_run
+    if provider:
+        per_provider = os.getenv(f"{provider.upper()}_MAX_TOKENS_PER_RUN", "").strip()
+        if per_provider:
+            return int(per_provider)
+    global_env = os.getenv("MAX_TOKENS_PER_RUN", "").strip()
+    if global_env:
+        return int(global_env)
+    return 150_000 if is_thinking_model(model) else 50_000
+
+
+def _truncate_file_output(text: str, max_lines: int = 300) -> str:
+    """Truncate file contents over `max_lines` to a head + tail window."""
+    lines = text.splitlines()
+    if len(lines) <= max_lines:
+        return text
+    head = 180
+    tail = max_lines - head
+    omitted = len(lines) - head - tail
+    return "\n".join(
+        lines[:head]
+        + [f"\n... [{omitted} lines omitted from {len(lines)}-line file] ...\n"]
+        + lines[-tail:]
+    )
+
+
+def _prune_stale_tool_results(messages: list[dict[str, Any]], keep_recent: int = 2) -> None:
+    """Compact older tool results beyond the most recent `keep_recent` entries."""
+    tool_indices = [i for i, m in enumerate(messages) if m.get("role") == "tool"]
+    if len(tool_indices) <= keep_recent:
+        return
+    for idx in tool_indices[:-keep_recent]:
+        msg = messages[idx]
+        name = msg.get("name", "tool")
+        content = msg.get("content")
+        if isinstance(content, str) and content.startswith("[stale "):
+            continue
+        if name == "read_file" and isinstance(content, str):
+            line_count = len(content.splitlines())
+            msg["content"] = f"[stale read_file result omitted ({line_count} lines) — re-read if needed]"
+        elif name == "run_tests" and isinstance(content, dict):
+            msg["content"] = {"passed": content.get("passed"), "note": "[stale test output omitted]"}
+
+
 def _run_multi_provider(
     item: dict[str, Any],
     src_files: list[str],
@@ -352,6 +425,8 @@ def _run_multi_provider(
 ) -> RunState:
     """Run plan -> implement -> verify using the multi-provider llm_call() layer."""
     total_tokens = 0
+    thinking_tokens = 0
+    wait_s = 0.0
     tool_calls = 0
     test_failures = 0
     current_provider: str | None = cfg.provider or None
@@ -387,7 +462,9 @@ def _run_multi_provider(
         current_provider = plan_resp.provider
         state.provider = plan_resp.provider
         state.model = plan_resp.model
-        total_tokens += plan_resp.tokens_in + plan_resp.tokens_out
+        total_tokens += plan_resp.tokens_in + plan_resp.tokens_out + plan_resp.thinking_tokens
+        thinking_tokens += plan_resp.thinking_tokens
+        wait_s += plan_resp.wait_s
         state.plan = plan_resp.text.strip()
 
         logger.record(
@@ -397,6 +474,7 @@ def _run_multi_provider(
             result=state.plan,
             tokens_in=plan_resp.tokens_in,
             tokens_out=plan_resp.tokens_out,
+            thinking_tokens=plan_resp.thinking_tokens,
             duration_ms=int((time.monotonic() - t0) * 1000),
             provider=plan_resp.provider,
             model=plan_resp.model,
@@ -427,18 +505,23 @@ def _run_multi_provider(
 
         run_start = time.monotonic()
         while True:
-            if (time.monotonic() - run_start) > cfg.max_run_seconds:
+            token_budget = resolve_token_budget(cfg, state.provider, state.model)
+            active_elapsed = (time.monotonic() - run_start) - wait_s
+            if active_elapsed > cfg.max_run_seconds:
                 state.status = "budget_exceeded"
-                state.error = f"Run time limit exceeded ({cfg.max_run_seconds}s)"
+                state.error = f"Run time limit exceeded ({cfg.max_run_seconds}s active)"
                 break
-            if total_tokens >= cfg.max_tokens_per_run:
+            if total_tokens >= token_budget:
                 state.status = "budget_exceeded"
-                state.error = f"Token budget exceeded ({total_tokens} >= {cfg.max_tokens_per_run})"
+                state.error = f"Token budget exceeded ({total_tokens} >= {token_budget})"
                 break
             if tool_calls >= cfg.max_tool_calls:
                 state.status = "budget_exceeded"
                 state.error = f"Tool call limit reached ({tool_calls} >= {cfg.max_tool_calls})"
                 break
+
+            if cfg.context_compaction:
+                _prune_stale_tool_results(messages, keep_recent=2)
 
             resp = llm_call(
                 messages=messages,
@@ -451,7 +534,9 @@ def _run_multi_provider(
             current_provider = resp.provider
             state.provider = resp.provider
             state.model = resp.model
-            total_tokens += resp.tokens_in + resp.tokens_out
+            total_tokens += resp.tokens_in + resp.tokens_out + resp.thinking_tokens
+            thinking_tokens += resp.thinking_tokens
+            wait_s += resp.wait_s
 
             if not resp.tool_calls:
                 break
@@ -461,7 +546,12 @@ def _run_multi_provider(
                     "role": "assistant",
                     "content": resp.text,
                     "tool_calls": [
-                        {"id": tc.id, "name": tc.name, "args": tc.args}
+                        {
+                            "id": tc.id,
+                            "name": tc.name,
+                            "args": tc.args,
+                            "thought_signature": tc.thought_signature,
+                        }
                         for tc in resp.tool_calls
                     ],
                 }
@@ -480,6 +570,9 @@ def _run_multi_provider(
                 except (ValueError, FileNotFoundError, subprocess.SubprocessError, OSError) as exc:
                     output = {"error": str(exc)}
 
+                if cfg.context_compaction and tc.name == "read_file" and isinstance(output, str):
+                    output = _truncate_file_output(output, max_lines=300)
+
                 phase = "verify" if tc.name == "run_tests" else "implement"
                 if tc.name == "run_tests" and isinstance(output, dict):
                     state.tests_passed = bool(output.get("passed"))
@@ -493,6 +586,7 @@ def _run_multi_provider(
                     result=output,
                     tokens_in=resp.tokens_in if idx == 0 else 0,
                     tokens_out=resp.tokens_out if idx == 0 else 0,
+                    thinking_tokens=resp.thinking_tokens if idx == 0 else 0,
                     duration_ms=int((time.monotonic() - t_tool) * 1000),
                     provider=resp.provider,
                     model=resp.model,
@@ -518,9 +612,12 @@ def _run_multi_provider(
         state.error = exc.message
         state.provider = exc.provider or state.provider
         state.error_detail = exc.to_detail()
+        wait_s += exc.wait_s
 
     state.tool_calls = tool_calls
     state.total_tokens = total_tokens
+    state.thinking_tokens = thinking_tokens
+    state.wait_s = round(wait_s, 2)
     return state
 
 
@@ -545,6 +642,7 @@ def run_agent(
         state = _run_multi_provider(item, src_files, cfg, mcp_cfg, logger, state, on_event)
         state.diff = _get_git_diff(cfg.workdir)
         state.duration_s = round(time.monotonic() - start_time, 2)
+        state.active_s = round(max(0.0, state.duration_s - state.wait_s), 2)
         if state.status not in ("budget_exceeded", "failed"):
             if state.tests_passed:
                 state.status = "awaiting_approval"
@@ -638,9 +736,10 @@ def run_agent(
     ]
 
     while True:
-        if total_tokens >= cfg.max_tokens_per_run:
+        token_budget = resolve_token_budget(cfg, "anthropic", cfg.model)
+        if total_tokens >= token_budget:
             state.status = "budget_exceeded"
-            state.error = f"Token budget exceeded ({total_tokens} >= {cfg.max_tokens_per_run})"
+            state.error = f"Token budget exceeded ({total_tokens} >= {token_budget})"
             break
         if tool_calls >= cfg.max_tool_calls:
             state.status = "budget_exceeded"
