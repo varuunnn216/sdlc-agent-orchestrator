@@ -43,6 +43,12 @@ PROVIDER_DEFAULTS: dict[str, dict[str, str]] = {
         "model_env": "GEMINI_MODEL",
         "default_model": "gemini-3.6-flash",
     },
+    "ollama": {
+        "base_url": "http://localhost:11434/v1",
+        "key_env": "OLLAMA_API_KEY",
+        "model_env": "OLLAMA_MODEL",
+        "default_model": "qwen2.5-coder:7b",
+    },
 }
 
 _PLACEHOLDER_PREFIXES = ("your-", "replace-", "changeme")
@@ -78,6 +84,7 @@ class LLMResponse:
     tokens_out: int = 0
     thinking_tokens: int = 0
     attempts: int = 1
+    wait_s: float = 0.0
 
 
 class LLMError(Exception):
@@ -90,6 +97,7 @@ class LLMError(Exception):
         provider: str = "",
         attempts: int = 0,
         retry_after_s: int | None = None,
+        wait_s: float = 0.0,
     ) -> None:
         super().__init__(message)
         self.kind = kind
@@ -97,6 +105,7 @@ class LLMError(Exception):
         self.provider = provider
         self.attempts = attempts
         self.retry_after_s = retry_after_s
+        self.wait_s = wait_s
 
     def to_detail(self) -> dict[str, Any]:
         return {
@@ -104,6 +113,7 @@ class LLMError(Exception):
             "provider": self.provider,
             "attempts": self.attempts,
             "retry_after_s": self.retry_after_s,
+            "wait_s": round(self.wait_s, 2),
         }
 
 
@@ -157,10 +167,16 @@ def get_provider_model(provider: str) -> str:
 
 
 def is_provider_configured(provider: str) -> bool:
-    """Return True if the provider has a non-placeholder API key configured."""
+    """Return True if the provider has a non-placeholder API key (or is enabled for local Ollama)."""
     spec = PROVIDER_DEFAULTS.get(provider)
     if not spec:
         return False
+    if provider == "ollama":
+        return (
+            "ollama" in get_provider_order()
+            or bool(os.getenv("OLLAMA_BASE_URL", "").strip())
+            or bool(os.getenv("OLLAMA_MODEL", "").strip())
+        )
     return _is_valid_key(os.getenv(spec["key_env"]))
 
 
@@ -371,7 +387,12 @@ def _call_openai_compat(
 ) -> LLMResponse:
     spec = PROVIDER_DEFAULTS[provider]
     api_key = os.getenv(spec["key_env"], "").strip()
-    url = f"{spec['base_url']}/chat/completions"
+    base_url = (
+        os.getenv("OLLAMA_BASE_URL", "").strip().rstrip("/") or spec["base_url"]
+        if provider == "ollama"
+        else spec["base_url"]
+    )
+    url = f"{base_url}/chat/completions"
 
     payload: dict[str, Any] = {
         "model": model,
@@ -383,10 +404,9 @@ def _call_openai_compat(
         payload["tools"] = openai_tools
         payload["tool_choice"] = "auto"
 
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-    }
+    headers = {"Content-Type": "application/json"}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
 
     try:
         if http_client is not None:
@@ -619,6 +639,7 @@ def llm_call(
         )
 
     total_attempts = 0
+    total_wait_s = 0.0
     last_retry_after: int | None = None
     last_provider = configured_candidates[-1]
     switched_from: str | None = None
@@ -650,6 +671,7 @@ def llm_call(
                     http_client=http_client,
                 )
                 resp.attempts = total_attempts
+                resp.wait_s = total_wait_s
                 return resp
             except _ProviderCallError as err:
                 last_provider = provider
@@ -659,6 +681,7 @@ def llm_call(
                         message=f"Server configuration error for {provider} ({err.reason}).",
                         provider=provider,
                         attempts=total_attempts,
+                        wait_s=total_wait_s,
                     ) from err
 
                 if err.status_code == 429:
@@ -682,7 +705,9 @@ def llm_call(
 
                     if attempt < MAX_ATTEMPTS_PER_PROVIDER:
                         wait_s = float(err.retry_after_s) if err.retry_after_s is not None else 1.0
-                        sleep_fn(min(short_retry_max, max(0.5, wait_s)) + random.uniform(1.0, 2.0))
+                        delay = min(short_retry_max, max(0.5, wait_s)) + random.uniform(1.0, 2.0)
+                        total_wait_s += delay
+                        sleep_fn(delay)
                         continue
 
                     _mark_cooldown(provider, 30.0, daily=False)
@@ -693,7 +718,9 @@ def llm_call(
 
                 # 5xx / timeout / connection error
                 if attempt < MAX_ATTEMPTS_PER_PROVIDER:
-                    sleep_fn((0.5 * (2 ** (attempt - 1))) + random.uniform(0.0, 0.25))
+                    delay = (0.5 * (2 ** (attempt - 1))) + random.uniform(0.0, 0.25)
+                    total_wait_s += delay
+                    sleep_fn(delay)
                     continue
 
                 _mark_cooldown(provider, 30.0, daily=False)
@@ -713,4 +740,5 @@ def llm_call(
         provider=last_provider,
         attempts=total_attempts,
         retry_after_s=last_retry_after,
+        wait_s=total_wait_s,
     )
