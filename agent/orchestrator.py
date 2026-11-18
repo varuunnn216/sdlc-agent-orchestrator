@@ -84,6 +84,10 @@ class AgentConfig:
     max_tokens_per_run: int | None = None
     max_test_retries: int = 2
     max_run_seconds: int = 180
+    context_compaction: bool = field(
+        default_factory=lambda: os.getenv("CONTEXT_COMPACTION", "true").strip().lower()
+        not in {"0", "false", "no"}
+    )
     workdir: Path = DEFAULT_WORKDIR
     log_dir: Path = DEFAULT_LOG_DIR
     dry_run: bool = False
@@ -103,6 +107,8 @@ class RunState:
     total_tokens: int = 0
     thinking_tokens: int = 0
     duration_s: float = 0.0
+    active_s: float = 0.0
+    wait_s: float = 0.0
     pr_result: dict[str, Any] | None = None
     reject_reason: str | None = None
     error: str | None = None
@@ -420,6 +426,7 @@ def _run_multi_provider(
     """Run plan -> implement -> verify using the multi-provider llm_call() layer."""
     total_tokens = 0
     thinking_tokens = 0
+    wait_s = 0.0
     tool_calls = 0
     test_failures = 0
     current_provider: str | None = cfg.provider or None
@@ -457,6 +464,7 @@ def _run_multi_provider(
         state.model = plan_resp.model
         total_tokens += plan_resp.tokens_in + plan_resp.tokens_out + plan_resp.thinking_tokens
         thinking_tokens += plan_resp.thinking_tokens
+        wait_s += plan_resp.wait_s
         state.plan = plan_resp.text.strip()
 
         logger.record(
@@ -498,9 +506,10 @@ def _run_multi_provider(
         run_start = time.monotonic()
         while True:
             token_budget = resolve_token_budget(cfg, state.provider, state.model)
-            if (time.monotonic() - run_start) > cfg.max_run_seconds:
+            active_elapsed = (time.monotonic() - run_start) - wait_s
+            if active_elapsed > cfg.max_run_seconds:
                 state.status = "budget_exceeded"
-                state.error = f"Run time limit exceeded ({cfg.max_run_seconds}s)"
+                state.error = f"Run time limit exceeded ({cfg.max_run_seconds}s active)"
                 break
             if total_tokens >= token_budget:
                 state.status = "budget_exceeded"
@@ -511,7 +520,8 @@ def _run_multi_provider(
                 state.error = f"Tool call limit reached ({tool_calls} >= {cfg.max_tool_calls})"
                 break
 
-            _prune_stale_tool_results(messages, keep_recent=2)
+            if cfg.context_compaction:
+                _prune_stale_tool_results(messages, keep_recent=2)
 
             resp = llm_call(
                 messages=messages,
@@ -526,6 +536,7 @@ def _run_multi_provider(
             state.model = resp.model
             total_tokens += resp.tokens_in + resp.tokens_out + resp.thinking_tokens
             thinking_tokens += resp.thinking_tokens
+            wait_s += resp.wait_s
 
             if not resp.tool_calls:
                 break
@@ -559,7 +570,7 @@ def _run_multi_provider(
                 except (ValueError, FileNotFoundError, subprocess.SubprocessError, OSError) as exc:
                     output = {"error": str(exc)}
 
-                if tc.name == "read_file" and isinstance(output, str):
+                if cfg.context_compaction and tc.name == "read_file" and isinstance(output, str):
                     output = _truncate_file_output(output, max_lines=300)
 
                 phase = "verify" if tc.name == "run_tests" else "implement"
@@ -601,10 +612,12 @@ def _run_multi_provider(
         state.error = exc.message
         state.provider = exc.provider or state.provider
         state.error_detail = exc.to_detail()
+        wait_s += exc.wait_s
 
     state.tool_calls = tool_calls
     state.total_tokens = total_tokens
     state.thinking_tokens = thinking_tokens
+    state.wait_s = round(wait_s, 2)
     return state
 
 
@@ -629,6 +642,7 @@ def run_agent(
         state = _run_multi_provider(item, src_files, cfg, mcp_cfg, logger, state, on_event)
         state.diff = _get_git_diff(cfg.workdir)
         state.duration_s = round(time.monotonic() - start_time, 2)
+        state.active_s = round(max(0.0, state.duration_s - state.wait_s), 2)
         if state.status not in ("budget_exceeded", "failed"):
             if state.tests_passed:
                 state.status = "awaiting_approval"
