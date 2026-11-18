@@ -389,3 +389,30 @@ def test_token_budget_and_context_compaction() -> None:
     assert msgs[1]["content"]["note"] == "[stale test output omitted]"
     assert msgs[2]["content"] == "recent 1"
     assert msgs[3]["content"]["output"] == "recent 2"
+
+
+def test_ollama_provider_configuration_and_wait_s_tracking(monkeypatch) -> None:
+    from agent.llm import is_provider_configured
+
+    monkeypatch.setenv("LLM_PROVIDER_ORDER", "ollama")
+    monkeypatch.setenv("OLLAMA_MODEL", "qwen2.5-coder:7b")
+    assert is_provider_configured("ollama") is True
+
+    attempt_num = 0
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        nonlocal attempt_num
+        attempt_num += 1
+        if attempt_num == 1:
+            return httpx.Response(429, headers={"Retry-After": "2"}, json={"error": {"message": "rpm"}})
+        return httpx.Response(200, json=_openai_tool_json("read_file", "src/App.tsx"))
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as mock_http:
+        resp = llm_call(
+            messages=[{"role": "user", "content": "hi"}],
+            http_client=mock_http,
+            sleep_fn=lambda _: None,
+        )
+
+    assert resp.provider == "ollama"
+    assert resp.wait_s >= 2.0
