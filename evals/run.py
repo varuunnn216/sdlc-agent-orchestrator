@@ -34,6 +34,7 @@ DEFAULT_PROVIDER_LIMITS: dict[str, tuple[int, int]] = {
     "groq": (30, 8_000),
     "cerebras": (5, 30_000),
     "gemini": (5, 250_000),
+    "ollama": (60, 1_000_000),
 }
 
 
@@ -79,6 +80,8 @@ class CaseOutcome:
     tool_calls: int
     total_tokens: int
     duration_s: float
+    active_s: float = 0.0
+    wait_s: float = 0.0
     pass_index: int = 1
     thinking_tokens: int = 0
     provider: str = ""
@@ -156,6 +159,8 @@ def evaluate_case(
             total_tokens=state.total_tokens,
             thinking_tokens=state.thinking_tokens,
             duration_s=state.duration_s,
+            active_s=state.active_s,
+            wait_s=state.wait_s,
             pass_index=pass_index,
             provider=state.provider,
             model=state.model,
@@ -180,6 +185,8 @@ def render_report(outcomes: list[CaseOutcome], model: str = "multi-provider") ->
         (sum(o.thinking_tokens for o in agent_outcomes) / agent_total) if agent_total else 0.0
     )
     avg_time = (sum(o.duration_s for o in agent_outcomes) / agent_total) if agent_total else 0.0
+    avg_active = (sum(o.active_s for o in agent_outcomes) / agent_total) if agent_total else 0.0
+    avg_wait = (sum(o.wait_s for o in agent_outcomes) / agent_total) if agent_total else 0.0
 
     # Per-pass stats
     passes_seen = sorted({o.pass_index for o in outcomes})
@@ -211,7 +218,7 @@ def render_report(outcomes: list[CaseOutcome], model: str = "multi-provider") ->
         f"- **Infra failures (quota/provider):** {len(infra_failures)}",
         f"- **Average tool calls:** {avg_tools:.2f}",
         f"- **Average tokens:** {avg_tokens:.0f} (avg thinking tokens: {avg_thinking:.0f})",
-        f"- **Average time:** {avg_time:.2f}s",
+        f"- **Average time:** {avg_time:.2f}s (active: {avg_active:.2f}s, rate-limit wait: {avg_wait:.2f}s)",
         "",
         "## Per-Pass Summary",
         "",
@@ -269,8 +276,8 @@ def render_report(outcomes: list[CaseOutcome], model: str = "multi-provider") ->
             "",
             "## Per-Case Breakdown",
             "",
-            "| Pass | Case | Type | Difficulty | Provider | Model | Result | Status | Tool Calls | Tokens | Thinking | Time (s) |",
-            "| ---: | --- | --- | --- | --- | --- | --- | --- | ---: | ---: | ---: | ---: |",
+            "| Pass | Case | Type | Difficulty | Provider | Model | Result | Status | Tool Calls | Tokens | Thinking | Active (s) | Wait (s) | Total (s) |",
+            "| ---: | --- | --- | --- | --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |",
         ]
     )
     for o in outcomes:
@@ -278,7 +285,7 @@ def render_report(outcomes: list[CaseOutcome], model: str = "multi-provider") ->
         lines.append(
             f"| {o.pass_index} | {o.case_id} | {o.item_type} | {o.difficulty} | {o.provider or '-'} | "
             f"{o.model or '-'} | {res_label} | {o.status} | {o.tool_calls} | "
-            f"{o.total_tokens} | {o.thinking_tokens} | {o.duration_s:.2f} |"
+            f"{o.total_tokens} | {o.thinking_tokens} | {o.active_s:.2f} | {o.wait_s:.2f} | {o.duration_s:.2f} |"
         )
 
     failures = [o for o in agent_outcomes if not o.passed]
@@ -306,6 +313,7 @@ def main() -> None:
     parser.add_argument("--case", help="Run only a single case ID (e.g., BUG-6 smoke test)")
     parser.add_argument("--limit", type=int, help="Run only the first N cases")
     parser.add_argument("--passes", type=int, default=1, help="Number of passes per case")
+    parser.add_argument("--budget", type=int, help="Max cases to run in this invocation (implies --resume)")
     parser.add_argument("--keep-workdirs", action="store_true", help="Keep isolated working copies")
     parser.add_argument("--resume", action="store_true", help="Resume from evals/results/progress.json")
     args = parser.parse_args()
@@ -313,7 +321,7 @@ def main() -> None:
     configured = [p for p in get_provider_order() if is_provider_configured(p)]
     if not configured:
         print(
-            "Error: Configure at least one provider key (GROQ_API_KEY, CEREBRAS_API_KEY, or GEMINI_API_KEY) in .env.",
+            "Error: Configure at least one provider key (GROQ_API_KEY, CEREBRAS_API_KEY, GEMINI_API_KEY, or ollama) in .env.",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -325,15 +333,19 @@ def main() -> None:
         if args.limit:
             cases = cases[: args.limit]
 
-    existing = _load_progress() if args.resume else []
+    use_resume = args.resume or (args.budget is not None)
+    existing = _load_progress() if use_resume else []
     by_key: dict[tuple[int, str], CaseOutcome] = {
         (o.pass_index, o.case_id): o for o in existing
     }
     pacer = ProviderPacer()
     quota_stopped = False
+    ran_this_session = 0
 
     for pass_idx in range(1, args.passes + 1):
         for case in cases:
+            if args.budget is not None and ran_this_session >= args.budget:
+                break
             cid = case["id"]
             prev = by_key.get((pass_idx, cid))
             if prev is not None and not prev.infra_failure:
@@ -347,6 +359,7 @@ def main() -> None:
                 keep_workdir=args.keep_workdirs,
                 pass_index=pass_idx,
             )
+            ran_this_session += 1
             pacer.record(outcome.provider or configured[0], outcome.total_tokens)
             by_key[(pass_idx, cid)] = outcome
             _save_progress(list(by_key.values()))
@@ -355,16 +368,29 @@ def main() -> None:
             print(
                 f"  -> {label} ({outcome.provider}/{outcome.model}, "
                 f"tools={outcome.tool_calls}, tokens={outcome.total_tokens}, "
-                f"thinking={outcome.thinking_tokens}, time={outcome.duration_s:.2f}s)"
+                f"thinking={outcome.thinking_tokens}, active={outcome.active_s:.2f}s, wait={outcome.wait_s:.2f}s)"
             )
             if outcome.infra_failure:
                 print("Stopping early due to infra/quota exhaustion; re-run with --resume to continue.")
                 quota_stopped = True
                 break
-        if quota_stopped:
+        if quota_stopped or (args.budget is not None and ran_this_session >= args.budget):
             break
 
     outcomes = list(by_key.values())
+    completed_non_infra = sum(1 for o in outcomes if not o.infra_failure)
+    completed_passes = sum(
+        1
+        for p in range(1, args.passes + 1)
+        if all(
+            (p, c["id"]) in by_key and not by_key[(p, c["id"])].infra_failure
+            for c in cases
+        )
+    )
+    print(
+        f"\nProgress: {completed_non_infra}/{len(cases) * args.passes} cases completed; "
+        f"{completed_passes}/{args.passes} full passes completed."
+    )
     model_summary = ", ".join(f"{p}:{get_provider_model(p)}" for p in configured)
     report = render_report(outcomes, model=model_summary)
     RESULTS_FILE.parent.mkdir(parents=True, exist_ok=True)
