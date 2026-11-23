@@ -87,4 +87,4 @@ cd sample-app && npm test
 - **Symlinked `node_modules`:** `scripts/reset.py` symlinks `sample-app/node_modules` into isolated copies for speed, assuming no new npm packages are installed by the agent.
 
 ## License
-[MIT](LICENSE) © 2026 Varun Singh · See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines.
+[MIT](LICENSE) © 2026 Varun Singh · See [CONTRIBUTING.md](CONTRIBUTING.md) and [CHANGELOG.md](CHANGELOG.md).
